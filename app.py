@@ -1,6 +1,8 @@
 """
 File: app.py
 ALPTECH AI Stüdyo — Apple-style, e-ticaret odaklı temalar + logo
+- WorldTimeAPI ile gerçek TR saati
+- OpenWeather Geocoding + Current Weather entegrasyonu
 """
 
 from __future__ import annotations
@@ -8,7 +10,7 @@ from __future__ import annotations
 import traceback
 from datetime import datetime
 from io import BytesIO
-from zoneinfo import ZoneInfo  # TR saati için
+from zoneinfo import ZoneInfo  # yedek için
 
 import requests
 import streamlit as st
@@ -19,6 +21,14 @@ from rembg import remove
 # ----------------------------
 # GÜVENLİ AYARLAR & KONFIG
 # ----------------------------
+# NOT: Bu anahtarları BEN senin adına alamam.
+# OpenWeather ve OpenAI için kendi hesabından API key üretmen gerekiyor.
+# Sonra .streamlit/secrets.toml içine:
+#   OPENAI_API_KEY = "xxxx"
+#   WEATHER_API_KEY = "yyyy"
+#   WEATHER_DEFAULT_CITY = "Istanbul"  (opsiyonel)
+# eklemelisin.
+
 if "OPENAI_API_KEY" in st.secrets:
     SABIT_API_KEY = st.secrets["OPENAI_API_KEY"]
 else:
@@ -26,6 +36,7 @@ else:
     st.warning("⚠️ OPENAI_API_KEY tanımlı değil. Sohbet ve AI sahne düzenleme devre dışı.")
 
 DEFAULT_MODEL = st.secrets.get("OPENAI_MODEL", "gpt-4o-mini")
+
 WEATHER_API_KEY = st.secrets.get("WEATHER_API_KEY", None)
 WEATHER_DEFAULT_CITY = st.secrets.get("WEATHER_DEFAULT_CITY", "İstanbul")
 
@@ -40,7 +51,7 @@ st.set_page_config(
 )
 
 # ----------------------------
-# THEME (Light / Dark) — Apple Style Paletleri
+# THEME (Light / Dark) — Apple Style
 # ----------------------------
 def get_theme(is_dark: bool):
     if is_dark:
@@ -66,9 +77,7 @@ def get_theme(is_dark: bool):
             "input_bg": "rgba(255,255,255,0.9)",
         }
 
-# ----------------------------
-# APPLE STYLE CSS
-# ----------------------------
+
 def apply_apple_css(tema: dict):
     st.markdown(
         f"""
@@ -113,12 +122,22 @@ def apply_apple_css(tema: dict):
         padding: 10px !important;
         color: {tema['text']} !important;
     }}
+
+    /* Chat balonlarını daha okunur yap */
     [data-testid="stChatMessage"] {{
         border-radius: 16px;
         padding: 6px 12px;
         backdrop-filter: blur(12px);
         margin-bottom: 10px;
+        background: {tema['card_bg']};
+        border: 1px solid {tema['border']};
     }}
+    [data-testid="stChatMessage"] p,
+    [data-testid="stChatMessage"] span,
+    [data-testid="stChatMessage"] div {{
+        color: {tema['text']} !important;
+    }}
+
     .custom-footer {{
         position: fixed; left: 0; bottom: 0; width: 100%;
         background: rgba(255,255,255,0.02);
@@ -132,7 +151,7 @@ def apply_apple_css(tema: dict):
     )
 
 # ----------------------------
-# SESSION STATE INIT
+# SESSION STATE
 # ----------------------------
 if "sonuc_gorseli" not in st.session_state:
     st.session_state.sonuc_gorseli = None
@@ -149,13 +168,10 @@ if "app_mode" not in st.session_state:
 # E-TİCARET ODAKLI TEMA LİSTESİ
 # ----------------------------
 TEMA_LISTESI = {
-    # Yerel işlemler (rembg + düz arka plan)
     "🧹 Arka Planı Kaldır (Şeffaf)": "ACTION_TRANSPARENT",
     "⬜ Saf Beyaz Fon (E-ticaret)": "ACTION_WHITE",
     "⬛ Saf Siyah Fon (Premium)": "ACTION_BLACK",
     "🍦 Krem / Bej Fon (Soft)": "ACTION_BEIGE",
-
-    # AI sahne — profesyonel e-ticaret
     "🛒 Katalog Stüdyosu (Beyaz)": (
         "Clean e-commerce product photo of the object on a pure white seamless background. "
         "Soft diffused studio lighting, natural soft shadow under the product, Amazon listing style, 4k, ultra sharp."
@@ -176,8 +192,6 @@ TEMA_LISTESI = {
         "Professional product shot on a matte black non-reflective background. "
         "Dramatic rim lighting, strong contrast, subtle reflection under the product, cinematic mood."
     ),
-
-    # Zemin temaları (AI sahne)
     "🏛️ Mermer Zemin (Lüks)": (
         "Luxury product photo of the object placed on a polished white carrara marble podium. "
         "Soft cinematic lighting, realistic shadows, depth of field, 8k, luxury aesthetic."
@@ -194,8 +208,6 @@ TEMA_LISTESI = {
         "Elegant product photo of the object resting on flowing champagne-colored silk fabric. "
         "Soft studio lighting, fashion editorial look, shallow depth of field."
     ),
-
-    # Yaşam tarzı / ortam temaları
     "🏠 Modern Salon Ortamı": (
         "Lifestyle product photo of the object on a modern living room coffee table. "
         "Soft natural daylight from a large window, blurred sofa and decor in the background, Scandinavian interior style."
@@ -223,10 +235,27 @@ TEMA_LISTESI = {
 }
 
 # ----------------------------
-# ZAMAN / HAVA / MARKA YARDIMCI FONKS.
+# ZAMAN & HAVA YARDIMCI FONKSİYONLAR
 # ----------------------------
-def turkce_zaman_getir():
-    simdi = datetime.now(ZoneInfo("Europe/Istanbul"))
+def fetch_tr_time() -> datetime:
+    """Önce WorldTimeAPI'den TR saati dene, hata olursa local ZoneInfo'ya düş."""
+    try:
+        resp = requests.get(
+            "http://worldtimeapi.org/api/timezone/Europe/Istanbul", timeout=5
+        )
+        if resp.status_code == 200:
+            data = resp.json()
+            # örnek: "2025-12-06T23:37:40.872507+03:00"
+            dt_str = data.get("datetime")
+            if dt_str:
+                return datetime.fromisoformat(dt_str)
+    except Exception:
+        pass
+    return datetime.now(ZoneInfo("Europe/Istanbul"))
+
+
+def turkce_zaman_getir() -> str:
+    simdi = fetch_tr_time()
     gunler = {
         0: "Pazartesi",
         1: "Salı",
@@ -252,35 +281,78 @@ def turkce_zaman_getir():
     }
     return f"{simdi.day} {aylar[simdi.month]} {simdi.year}, {gunler[simdi.weekday()]}, Saat {simdi.strftime('%H:%M')}"
 
+
 def get_time_answer() -> str:
-    simdi = datetime.now(ZoneInfo("Europe/Istanbul"))
+    simdi = fetch_tr_time()
     tarih_str = simdi.strftime("%d.%m.%Y")
     saat_str = simdi.strftime("%H:%M")
-    return f"Sistem saatine göre tarih {tarih_str}. Şu an saat {saat_str}."
+    return f"Güncel sisteme göre tarih {tarih_str}. Şu an saat {saat_str}."
 
-def get_weather_answer(location: str | None = None) -> str:
+
+def resolve_city_to_coords(city: str, limit: int = 1):
+    """OpenWeather Geocoding API ile şehir → (lat, lon)."""
     if not WEATHER_API_KEY:
-        return "Şu an hava durumu bilgisini sağlayamıyorum; sistemde hava durumu servisi ayarlı değil."
-    sehir = location or WEATHER_DEFAULT_CITY or "İstanbul"
+        return None
     try:
         url = (
-            "https://api.openweathermap.org/data/2.5/weather"
-            f"?q={sehir}&appid={WEATHER_API_KEY}&units=metric&lang=tr"
+            "http://api.openweathermap.org/geo/1.0/direct"
+            f"?q={city}&limit={limit}&appid={WEATHER_API_KEY}"
         )
         resp = requests.get(url, timeout=10)
         if resp.status_code != 200:
-            return "Şu an hava durumu bilgisini alamadım; lütfen daha sonra tekrar dene."
+            return None
         data = resp.json()
-        derece = data["main"]["temp"]
-        durum = data["weather"][0]["description"]
-        his = data["main"].get("feels_like", derece)
-        nem = data["main"].get("humidity", None)
-        base = f"{sehir} için güncel hava durumu: {durum}, sıcaklık {derece:.1f}°C (hissedilen {his:.1f}°C)."
-        if nem is not None:
-            base += f" Nem oranı yaklaşık %{nem}."
-        return base
+        if not data:
+            return None
+        first = data[0]
+        return float(first["lat"]), float(first["lon"])
     except Exception:
-        return "Hava durumu bilgisi alınırken bir hata oluştu; lütfen biraz sonra tekrar dene."
+        return None
+
+
+def get_weather_answer(location: str | None = None) -> str:
+    if not WEATHER_API_KEY:
+        return "Şu an hava durumu bilgisini veremiyorum; sisteme hava durumu API anahtarı ekli değil. 🌤️"
+
+    sehir = location or WEATHER_DEFAULT_CITY or "İstanbul"
+
+    # Önce geocoding ile koordinat al
+    coords = resolve_city_to_coords(sehir)
+    try:
+        if coords:
+            lat, lon = coords
+            url = (
+                "https://api.openweathermap.org/data/2.5/weather"
+                f"?lat={lat}&lon={lon}&appid={WEATHER_API_KEY}&units=metric&lang=tr"
+            )
+        else:
+            # Fallback: doğrudan city name (deprecated ama çalışıyor)
+            url = (
+                "https://api.openweathermap.org/data/2.5/weather"
+                f"?q={sehir}&appid={WEATHER_API_KEY}&units=metric&lang=tr"
+            )
+
+        resp = requests.get(url, timeout=10)
+        if resp.status_code != 200:
+            return f"Hava durumu bulunamadı: {sehir}. Lütfen geçerli bir şehir adı gir."
+
+        data = resp.json()
+        durum = data["weather"][0]["description"].capitalize()
+        derece = data["main"]["temp"]
+        his = data["main"].get("feels_like", derece)
+        nem = data["main"]["humidity"]
+        ruzgar = data["wind"]["speed"]
+
+        return (
+            f"📍 **{sehir}**\n"
+            f"🌡️ Sıcaklık: **{derece:.1f}°C** (Hissedilen **{his:.1f}°C**)\n"
+            f"☁️ Hava: **{durum}**\n"
+            f"💧 Nem: **%{nem}**\n"
+            f"🍃 Rüzgar: **{ruzgar} m/s**"
+        )
+    except Exception:
+        return "Hava durumu servisinde bir sorun oluştu; lütfen daha sonra tekrar dene."
+
 
 def custom_identity_interceptor(user_message: str) -> str | None:
     triggers = [
@@ -303,13 +375,14 @@ def custom_identity_interceptor(user_message: str) -> str | None:
         )
     return None
 
+
 def custom_utility_interceptor(user_message: str) -> str | None:
     msg = user_message.lower()
 
     if "saat" in msg or "tarih" in msg or "tarihi ve saati" in msg:
         return get_time_answer()
 
-    if "hava durumu" in msg or "hava nasıl" in msg or "hava kaç derece" in msg:
+    if "hava" in msg or "hava durumu" in msg or "hava nasıl" in msg:
         known_cities = ["istanbul", "ankara", "izmir", "bursa", "antalya", "adana"]
         city_found = None
         for c in known_cities:
@@ -319,6 +392,7 @@ def custom_utility_interceptor(user_message: str) -> str | None:
         return get_weather_answer(city_found)
 
     return None
+
 
 def build_system_talimati():
     zaman_bilgisi = turkce_zaman_getir()
@@ -339,6 +413,7 @@ def build_system_talimati():
     Sistem notu: Bu yanıtlar {zaman_bilgisi} tarihinde oluşturuluyor.
     """
     return system_talimati
+
 
 def normal_sohbet(client, chat_history):
     system_talimati = build_system_talimati()
@@ -376,11 +451,13 @@ def resmi_hazirla(image: Image.Image):
     kare_resim.paste(image, (x, y), image if image.mode == "RGBA" else None)
     return kare_resim
 
+
 def bayt_cevir(image: Image.Image):
     buf = BytesIO()
     image.save(buf, format="PNG")
     buf.seek(0)
     return buf.getvalue()
+
 
 def sahne_olustur(client, urun_resmi: Image.Image, prompt_text: str):
     if SABIT_API_KEY is None:
@@ -426,6 +503,7 @@ def sahne_olustur(client, urun_resmi: Image.Image, prompt_text: str):
         print("sahne_olustur hata:", e, traceback.format_exc())
         return None
 
+
 def yerel_islem(urun_resmi: Image.Image, islem_tipi: str):
     max_boyut = 1200
     if urun_resmi.width > max_boyut or urun_resmi.height > max_boyut:
@@ -455,7 +533,7 @@ def yerel_islem(urun_resmi: Image.Image, islem_tipi: str):
     return bg
 
 # ----------------------------
-# UI — HEADER + MOD DÜĞMELERİ
+# UI — HEADER + MOD
 # ----------------------------
 header_left, header_right = st.columns([0.16, 0.84])
 with header_left:
@@ -510,7 +588,7 @@ with col_chat:
 st.divider()
 
 # ----------------------------
-# STUDIO MODE
+# STÜDYO MODU
 # ----------------------------
 if st.session_state.app_mode == "📸 Stüdyo Modu (Görsel Düzenleme)":
     tab_yukle, tab_kamera = st.tabs(["📁 Dosya Yükle", "📷 Kamera"])
@@ -701,7 +779,7 @@ if st.session_state.app_mode == "📸 Stüdyo Modu (Görsel Düzenleme)":
                         st.rerun()
 
 # ----------------------------
-# CHAT MODE
+# SOHBET MODU
 # ----------------------------
 elif st.session_state.app_mode == "💬 Sohbet Modu (Genel Asistan)":
     st.markdown(
@@ -709,7 +787,7 @@ elif st.session_state.app_mode == "💬 Sohbet Modu (Genel Asistan)":
         unsafe_allow_html=True,
     )
 
-    qc1, qc2, qc3, qc4 = st.columns([1, 1, 1, 1])
+    qc1, qc2, qc3 = st.columns([1, 1, 1])
     quick_prompt = None
     with qc1:
         if st.button("🎨 Prompt öner"):
@@ -729,9 +807,6 @@ elif st.session_state.app_mode == "💬 Sohbet Modu (Genel Asistan)":
                 "Bu ALPTECH AI Stüdyo uygulaması ile neler yapabileceğimi, "
                 "özellikle stüdyo modu ve sohbet modunu, basit ve anlaşılır şekilde anlat."
             )
-    with qc4:
-        if st.button("🌤 Hava durumu sor"):
-            quick_prompt = f"{WEATHER_DEFAULT_CITY} için güncel hava durumu nasıl?"
 
     for msg in st.session_state.chat_history:
         with st.chat_message(msg["role"]):

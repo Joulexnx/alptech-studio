@@ -4,6 +4,7 @@ from PIL import Image, ImageOps, ImageFilter
 from io import BytesIO
 from openai import OpenAI
 import requests
+import base64
 import os
 
 # ==========================================
@@ -20,129 +21,89 @@ else:
 icon_path = "ALPTECHAI.png" if os.path.exists("ALPTECHAI.png") else "📸"
 st.set_page_config(page_title="ALPTECH AI Stüdyo", page_icon=icon_path, layout="wide", initial_sidebar_state="collapsed")
 
-# --- LOGO (SAĞ ÜST) ---
-if os.path.exists("ALPTECHAI.png"):
-    st.logo("ALPTECHAI.png")
-
 # --- TEMA MANTIĞI ---
 col_bosluk, col_tema = st.columns([10, 1]) 
 with col_tema:
     karanlik_mod = st.toggle("🌙 / ☀️", value=True)
 
-# --- RENK PALETLERİ (GÜÇLENDİRİLMİŞ) ---
+# --- RENK PALETLERİ ---
 if karanlik_mod:
     # === KARANLIK MOD ===
     tema = {
-        "bg": "#0e1117",
-        "text": "#ffffff",
-        "subtext": "#b0b0b0",
-        "card_bg": "#161616",
-        "border": "#333333",
-        "accent": "#00BFFF",
-        "button_hover": "#009ACD",
-        "input_bg": "#262730"
+        "bg": "#0e1117", "text": "#ffffff", "subtext": "#b0b0b0", "card_bg": "#161616", "border": "#333333",
+        "accent": "#00BFFF", "button_hover": "#009ACD", "logo_filter": "none", "input_bg": "#262730"
     }
 else:
     # === AYDINLIK MOD ===
     tema = {
-        "bg": "#ffffff",        # Tam beyaz
-        "text": "#000000",      # Tam siyah
-        "subtext": "#333333",   # Koyu gri
-        "card_bg": "#f0f2f6",   # Hafif gri kutular
-        "border": "#cccccc",
-        "accent": "#0078D4",
-        "button_hover": "#0062A3",
-        "input_bg": "#ffffff"
+        "bg": "#f0f2f6", "text": "#262730", "subtext": "#555555", "card_bg": "#ffffff", "border": "#cccccc",
+        "accent": "#0078D4", "button_hover": "#0062A3", "logo_filter": "invert(1) brightness(0.2)", "input_bg": "#ffffff"
     }
 
-# --- TASARIM (DİNAMİK CSS - MOBİL FİXLİ) ---
+# --- TASARIM (DİNAMİK CSS) ---
 st.markdown(f"""
     <style>
-    /* --- GENEL SAYFA RENGİ --- */
-    .stApp {{
-        background-color: {tema['bg']} !important;
-    }}
+    /* --- GENEL SAYFA VE BOŞLUK FİKSİ --- */
+    .stApp {{ background-color: {tema['bg']}; }}
     
-    /* --- TÜM YAZILARI ZORLA BOYA --- */
-    h1, h2, h3, h4, h5, h6, p, li, span, div, label, .stMarkdown, .stText {{
-        color: {tema['text']} !important;
-        font-family: 'Helvetica', sans-serif;
+    /* ÜST BOŞLUĞU AZALTMA FİKSİ */
+    .block-container {{ 
+        padding-top: 1.5rem; 
+        padding-bottom: 5rem;
+        padding-left: 1rem;
+        padding-right: 1rem;
     }}
+
+    h1, h2, h3, h4, p, li, span, div, label, .stMarkdown, .stText {{ color: {tema['text']} !important; }}
     
     /* --- GİZLEME --- */
-    #MainMenu, footer, header, [data-testid="stToolbar"] {{visibility: hidden !important;}}
-    [data-testid="stSidebar"] {{ display: none; }}
+    #MainMenu, footer, header, [data-testid="stToolbar"], [data-testid="stSidebar"] {{visibility: hidden !important;}}
 
     /* --- BUTONLAR --- */
     .stButton>button {{ 
         width: 100%; border-radius: 8px; font-weight: bold; height: 50px; border: none;
-        background-color: {tema['accent']} !important;
-        color: white !important; /* Buton yazısı her zaman beyaz */
-        transition: all 0.3s ease;
-    }}
-    .stButton>button:hover {{ background-color: {tema['button_hover']} !important; }}
-    
-    /* --- SEÇİM KUTULARI VE INPUTLAR --- */
-    /* Selectbox kutusu */
-    .stSelectbox > div > div {{
-        background-color: {tema['input_bg']} !important;
-        color: {tema['text']} !important;
-        border-color: {tema['border']} !important;
-    }}
-    /* Selectbox içindeki ok işareti (SVG) */
-    .stSelectbox svg {{
-        fill: {tema['text']} !important;
-    }}
-    
-    /* Text Area */
-    .stTextArea textarea {{ 
-        border-radius: 8px; 
-        border: 1px solid {tema['border']} !important; 
-        background-color: {tema['input_bg']} !important; 
-        color: {tema['text']} !important; 
+        background-color: {tema['accent']} !important; color: white !important;
     }}
 
-    /* --- DOSYA YÜKLEYİCİ --- */
-    [data-testid="stFileUploader"] {{ 
-        border: 2px dashed {tema['accent']};
-        border-radius: 12px; padding: 30px; text-align: center; 
-        background-color: {tema['card_bg']} !important;
+    /* --- INPUTLAR VE KUTULAR --- */
+    .stTextArea textarea {{ 
+        border: 1px solid {tema['border']} !important; 
+        background-color: {tema['input_bg']} !important; color: {tema['text']} !important; 
     }}
-    [data-testid="stFileUploader"] label {{ color: {tema['text']} !important; }}
-    [data-testid="stFileUploader"] small {{ color: {tema['subtext']} !important; }}
-    /* Yükleyici içindeki ikon rengi */
-    [data-testid="stFileUploader"] svg {{ fill: {tema['text']} !important; }}
+
+    /* --- GÖRSEL METİN FİKSİ (KRİTİK) --- */
+    /* Dosya yükleyici içindeki "Drag and drop", "Limit 200MB" gibi küçük metinleri zorla beyaz/siyah yapar */
+    [data-testid="stFileUploader"] small, 
+    [data-testid="stFileUploader"] p,
+    [data-testid="stFileUploader"] label {{
+        color: {tema['text']} !important; 
+    }}
     
     /* --- SEKMELER (TABS) --- */
-    .stTabs [data-baseweb="tab-list"] {{ justify-content: center; gap: 15px; margin-bottom: 20px; }}
-    .stTabs [data-baseweb="tab"] {{ 
-        font-size: 16px; font-weight: bold; 
-        color: {tema['subtext']} !important; 
-        background-color: transparent; 
-        border: 1px solid {tema['border']}; 
-        border-radius: 20px; padding: 8px 20px; 
-    }}
-    /* Seçili sekme */
     .stTabs [aria-selected="true"] {{ 
-        color: white !important; 
-        background-color: {tema['accent']} !important; 
-        border-color: {tema['accent']} !important;
+        color: white !important; background-color: {tema['accent']} !important; border-color: {tema['accent']} !important;
     }}
 
     /* --- GÖRSEL KONTEYNER --- */
     .image-container {{
         border: 1px solid {tema['border']}; border-radius: 12px; padding: 10px;
         background-color: {tema['card_bg']} !important; 
-        text-align: center;
         margin-bottom: 15px; display: flex; justify-content: center; align-items: center;
     }}
     .container-header {{ font-weight: bold; margin-bottom: 10px; color: {tema['accent']} !important; }}
     
-    /* --- FOOTER --- */
+    /* --- BAŞLIK VE LOGO ALANI --- */
+    .logo-img {{
+        filter: {tema['logo_filter']};
+        transition: filter 0.3s ease;
+    }}
+    .app-title {{ color: {tema['accent']} !important; font-size: 2.5rem; }}
+    .app-subtitle {{ color: {tema['subtext']} !important; font-size: 1.1rem; }}
+
+    /* --- SABİT FOOTER --- */
     .custom-footer {{ 
         position: fixed; left: 0; bottom: 0; width: 100%; 
-        background-color: {tema['bg']} !important; 
-        color: {tema['subtext']} !important; 
+        background-color: {tema['bg']}; color: {tema['subtext']}; 
         text-align: center; padding: 10px; font-size: 12px; 
         border-top: 1px solid {tema['border']}; z-index: 999;
     }}
@@ -155,10 +116,7 @@ if 'sonuc_format' not in st.session_state: st.session_state.sonuc_format = "PNG"
 
 # --- İŞLEM HARİTASI ---
 TEMA_LISTESI = {
-    "🧹 Arka Planı Kaldır (Şeffaf)": "ACTION_TRANSPARENT",
-    "⬛ Düz Siyah Fon (Mat)": "ACTION_BLACK",
-    "⬜ Düz Beyaz Fon": "ACTION_WHITE",
-    "🍦 Krem / Bej Fon": "ACTION_BEIGE",
+    "🧹 Arka Planı Kaldır (Şeffaf)": "ACTION_TRANSPARENT", "⬛ Düz Siyah Fon (Mat)": "ACTION_BLACK", "⬜ Düz Beyaz Fon": "ACTION_WHITE", "🍦 Krem / Bej Fon": "ACTION_BEIGE",
     "🏛️ Mermer Zemin (Lüks)": "Professional product photography, close-up shot of the object placed on a polished white carrara marble podium. Soft cinematic lighting, realistic shadows, depth of field, 8k resolution, luxury aesthetic.",
     "🪵 Ahşap Zemin (Doğal)": "Professional product photography, object placed on a textured rustic oak wooden table. Warm sunlight coming from the side, dappled shadows, blurred nature background, cozy atmosphere, photorealistic.",
     "🧱 Beton Zemin (Modern)": "Professional product photography, object placed on a raw grey concrete surface. Hard dramatic lighting, high contrast, sharp shadows, urban minimalist style, 8k.",
@@ -215,9 +173,21 @@ def yerel_islem(urun_resmi, islem_tipi):
     bg.paste(temiz_urun, mask=temiz_urun)
     return bg
 
-# --- ANA BAŞLIK ---
-st.title("ALPTECH AI Stüdyo")
-st.write("Ürününü ekle, hayaline göre profesyonel bir şekilde düzenle.")
+# --- ÖZEL BAŞLIK ALANI (Dinamik Logo) ---
+logo_html = ""
+if os.path.exists("ALPTECHAI.png"):
+    import base64
+    with open("ALPTECHAI.png", "rb") as f:
+        data = base64.b64encode(f.read()).decode("utf-8")
+        logo_html = f'<img src="data:image/png;base64,{data}" class="logo-img">'
+
+st.markdown(f"""
+    <div class="logo-header">
+        {logo_html}
+        <h1 class="app-title">ALPTECH AI Stüdyo</h1>
+        <p class="app-subtitle">Ürününü ekle, hayaline göre profesyonel bir şekilde düzenle.</p>
+    </div>
+    """, unsafe_allow_html=True)
 
 # --- GİRİŞ SEKMELERİ ---
 tab_yukle, tab_kamera = st.tabs(["📁 Dosya Yükle", "📷 Kamera"])

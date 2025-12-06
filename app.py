@@ -25,6 +25,7 @@ st.set_page_config(page_title="ALPTECH AI Stüdyo", page_icon="🤖", layout="wi
 # --- TEMA MANTIĞI ---
 col_bosluk, col_tema = st.columns([10, 1]) 
 with col_tema:
+    # Tema toggle'ı kullanıcı isteği üzerine tutuluyor.
     karanlik_mod = st.toggle("🌙 / ☀️", value=True, key="theme_toggle") 
 
 if karanlik_mod:
@@ -74,6 +75,7 @@ st.markdown(f"""
 if 'sonuc_gorseli' not in st.session_state: st.session_state.sonuc_gorseli = None
 if 'sonuc_format' not in st.session_state: st.session_state.sonuc_format = "PNG"
 if 'chat_history' not in st.session_state: 
+    # İlk karşılama mesajı güncellendi
     st.session_state.chat_history = [{"role": "assistant", "content": "Merhaba! Hangi modu kullanmak istersin?"}]
 if 'app_mode' not in st.session_state: st.session_state.app_mode = "📸 Stüdyo Modu (Görsel Düzenleme)"
 
@@ -83,7 +85,6 @@ TEMA_LISTESI = {
     "🏛️ Mermer Zemin (Lüks)": "Professional product photography, close-up shot of the object placed on a polished white carrara marble podium. Soft cinematic lighting, realistic shadows, depth of field, 8k resolution, luxury aesthetic.",
     "🪵 Ahşap Zemin (Doğal)": "Professional product photography, object placed on a textured rustic oak wooden table. Warm sunlight coming from the side, dappled shadows, blurred nature background, cozy atmosphere, photorealistic.",
     "🧱 Beton Zemin (Modern)": "Professional product photography, object placed on a raw grey concrete surface. Hard dramatic lighting, high contrast, sharp shadows, urban minimalist style, 8k.",
-    "🛋️ İpek Kumaş (Zarif)": "Professional product photography, object resting on flowing champagne-colored silk fabric. Softbox lighting, elegant reflections, fashion magazine style, macro details.",
     "💡 Profesyonel Stüdyo": "High-end commercial product photography, object placed on an infinity curve background. Three-point lighting setup, rim light to separate object from background, ultra sharp focus.",
     "🌑 Karanlık Mod (Dark Studio)": "Professional product photography, object placed on a matte black non-reflective surface. Dark studio background, clean, dramatic rim lighting highlighting the object contours, minimal shadows, no reflections."
 }
@@ -101,15 +102,17 @@ def normal_sohbet(client, chat_history):
     
     # 🌟 GÜNCELLENEN SİSTEM TALİMATI (Kapsamlı hale getirildi)
     system_talimati = f"""
-    Sen ALPTECH AI adında cana yakın, esprili, pozitif ve ÇOK KAPSAMLI bir asistansın. 
+    Sen ALPTECH AI adında cana yakın, esprili, pozitif ve ÇOK KAPSAMLI BİR YARATICI YAZAR (Profesyonel Söz Yazarı, Metin Yazarı) asistansın. 
     Kullanıcının isteği doğrultusunda cevaplarının uzunluğunu ve detay seviyesini ayarla. 
     
     Yeteneklerin:
-    1. Detaylı Metin Üretimi: Şarkı, şiir, makale taslağı ve profesyonel e-posta gibi yaratıcı ve uzun metinleri, istenilen formatta ve kapsamda yaz. (Örneğin, şarkı istendiğinde dörtlük değil, tam bir şarkı yaz.)
-    2. Yazım ve Dilbilgisi Düzeltme: Kullanıcının hatalı yazdığı cümleleri veya metinleri tespit et ve doğru bir şekilde düzelt.
-    3. Derinlemesine Bilgi: Karmaşık sorulara kısa cevaplar yerine derinlemesine ve doyurucu açıklamalar sun.
+    1. Detaylı Metin Üretimi: Şarkı, şiir, makale taslağı ve profesyonel e-posta gibi yaratıcı ve uzun metinleri, istenilen formatta ve kapsamda yaz. (Örn: şarkı istendiğinde dörtlük değil, tam BİR ŞARKI YAPISI içinde yaz: Giriş, Verse, Nakarat, Köprü, Çıkış).
+    2. Yaratıcılık: Kullanıcının temasına (Aşk, Ayrılık) ve tarzına (Rap, Pop, Slow) göre ÜST DÜZEYDE kişiselleştirilmiş ve duygusal/akıcı içerikler üret.
+    3. Yazım ve Dilbilgisi Düzeltme: Kullanıcının hatalı yazdığı cümleleri veya metinleri tespit et ve doğru bir şekilde düzelt.
+    4. Derinlemesine Bilgi: Karmaşık sorulara kısa cevaplar yerine derinlemesine ve doyurucu açıklamalar sun.
 
     Kullanıcının her mesajından sonra 'Size nasıl yardımcı olabilirim?' veya 'Sen nasılsın?' gibi tekrar eden, robotik ifadeler KULLANMA.
+    Kullanıcının mesajına uygun, doğal ve akıcı bir şekilde karşılık ver. Cevapların kısa ve öz olsun (sadece talep uygunsa).
     Selamlama (merhaba, selam) aldığında: Kısa ve samimi karşılık ver (Örn: "Selam! 👋" veya "Merhaba! 😊"), ardından sohbeti kullanıcıya bırak.
     Kullanıcıyla samimi ve doğal bir sohbet akışı yakala. Emoji kullanmaktan çekinme.
     ŞU ANKİ GERÇEK ZAMAN: {zaman_bilgisi}.
@@ -327,6 +330,7 @@ elif st.session_state.app_mode == "💬 Sohbet Modu (Genel Asistan)":
         with st.chat_message("assistant"):
             with st.spinner("ALPTECH yazıyor..."):
                 client = OpenAI(api_key=SABIT_API_KEY)
+                # Buraya güncel chat geçmişini gönderiyoruz
                 cevap = normal_sohbet(client, st.session_state.chat_history)
                 st.write(cevap)
                 st.session_state.chat_history.append({"role": "assistant", "content": cevap})

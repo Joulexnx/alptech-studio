@@ -20,18 +20,16 @@ else:
 icon_path = "ALPTECHAI.png" if os.path.exists("ALPTECHAI.png") else "📸"
 st.set_page_config(page_title="ALPTECH AI Stüdyo", page_icon=icon_path, layout="wide", initial_sidebar_state="collapsed")
 
-# --- LOGO YERLEŞİMİ (SAĞ ÜST) ---
-# Streamlit'in native logo özelliği. Sağ üst köşeye otomatik yerleşir ve boyutlanır.
+# --- LOGO (SAĞ ÜST) ---
 if os.path.exists("ALPTECHAI.png"):
     st.logo("ALPTECHAI.png")
 
 # --- TEMA MANTIĞI ---
-# Sağ üst köşe için toggle (Logonun yanına gelir)
 col_bosluk, col_tema = st.columns([10, 1]) 
 with col_tema:
     karanlik_mod = st.toggle("🌙 / ☀️", value=True)
 
-# --- RENK PALETLERİ ---
+# --- RENK PALETLERİ (GÜÇLENDİRİLMİŞ) ---
 if karanlik_mod:
     # === KARANLIK MOD ===
     tema = {
@@ -41,27 +39,35 @@ if karanlik_mod:
         "card_bg": "#161616",
         "border": "#333333",
         "accent": "#00BFFF",
-        "button_hover": "#009ACD"
+        "button_hover": "#009ACD",
+        "input_bg": "#262730"
     }
 else:
     # === AYDINLIK MOD ===
     tema = {
-        "bg": "#f0f2f6",
-        "text": "#262730",
-        "subtext": "#555555",
-        "card_bg": "#ffffff",
-        "border": "#dce1e6",
+        "bg": "#ffffff",        # Tam beyaz
+        "text": "#000000",      # Tam siyah
+        "subtext": "#333333",   # Koyu gri
+        "card_bg": "#f0f2f6",   # Hafif gri kutular
+        "border": "#cccccc",
         "accent": "#0078D4",
-        "button_hover": "#0062A3"
+        "button_hover": "#0062A3",
+        "input_bg": "#ffffff"
     }
 
-# --- TASARIM (DİNAMİK CSS) ---
+# --- TASARIM (DİNAMİK CSS - MOBİL FİXLİ) ---
 st.markdown(f"""
     <style>
-    /* --- GENEL SAYFA --- */
-    .main {{ background-color: {tema['bg']}; transition: background-color 0.3s ease; }}
-    h1, h2, h3, h4, p, label, span, div {{ font-family: 'Helvetica', sans-serif; color: {tema['text']} !important; }}
-    .stMarkdown p {{ color: {tema['text']} !important; }}
+    /* --- GENEL SAYFA RENGİ --- */
+    .stApp {{
+        background-color: {tema['bg']} !important;
+    }}
+    
+    /* --- TÜM YAZILARI ZORLA BOYA --- */
+    h1, h2, h3, h4, h5, h6, p, li, span, div, label, .stMarkdown, .stText {{
+        color: {tema['text']} !important;
+        font-family: 'Helvetica', sans-serif;
+    }}
     
     /* --- GİZLEME --- */
     #MainMenu, footer, header, [data-testid="stToolbar"] {{visibility: hidden !important;}}
@@ -71,43 +77,63 @@ st.markdown(f"""
     .stButton>button {{ 
         width: 100%; border-radius: 8px; font-weight: bold; height: 50px; border: none;
         background-color: {tema['accent']} !important;
-        color: white !important; 
+        color: white !important; /* Buton yazısı her zaman beyaz */
         transition: all 0.3s ease;
     }}
     .stButton>button:hover {{ background-color: {tema['button_hover']} !important; }}
-    .stButton>button:active {{ transform: scale(0.98); }}
-
-    /* --- INPUTLAR VE KUTULAR --- */
-    .stSelectbox > div > div {{ background-color: {tema['card_bg']}; border-color: {tema['border']}; color: {tema['text']}; }}
-    .stTextInput > div > div {{ background-color: {tema['card_bg']}; border-color: {tema['border']}; color: {tema['text']}; }}
+    
+    /* --- SEÇİM KUTULARI VE INPUTLAR --- */
+    /* Selectbox kutusu */
+    .stSelectbox > div > div {{
+        background-color: {tema['input_bg']} !important;
+        color: {tema['text']} !important;
+        border-color: {tema['border']} !important;
+    }}
+    /* Selectbox içindeki ok işareti (SVG) */
+    .stSelectbox svg {{
+        fill: {tema['text']} !important;
+    }}
+    
+    /* Text Area */
     .stTextArea textarea {{ 
-        border-radius: 8px; border: 1px solid {tema['border']}; 
-        background-color: {tema['card_bg']}; color: {tema['text']}; 
+        border-radius: 8px; 
+        border: 1px solid {tema['border']} !important; 
+        background-color: {tema['input_bg']} !important; 
+        color: {tema['text']} !important; 
     }}
 
     /* --- DOSYA YÜKLEYİCİ --- */
     [data-testid="stFileUploader"] {{ 
         border: 2px dashed {tema['accent']};
         border-radius: 12px; padding: 30px; text-align: center; 
-        background-color: {tema['card_bg']};
+        background-color: {tema['card_bg']} !important;
     }}
     [data-testid="stFileUploader"] label {{ color: {tema['text']} !important; }}
     [data-testid="stFileUploader"] small {{ color: {tema['subtext']} !important; }}
+    /* Yükleyici içindeki ikon rengi */
+    [data-testid="stFileUploader"] svg {{ fill: {tema['text']} !important; }}
     
     /* --- SEKMELER (TABS) --- */
     .stTabs [data-baseweb="tab-list"] {{ justify-content: center; gap: 15px; margin-bottom: 20px; }}
     .stTabs [data-baseweb="tab"] {{ 
-        font-size: 16px; font-weight: bold; color: {tema['subtext']}; background-color: transparent; 
-        border: 1px solid {tema['border']}; border-radius: 20px; padding: 8px 20px; transition: all 0.3s;
+        font-size: 16px; font-weight: bold; 
+        color: {tema['subtext']} !important; 
+        background-color: transparent; 
+        border: 1px solid {tema['border']}; 
+        border-radius: 20px; padding: 8px 20px; 
     }}
+    /* Seçili sekme */
     .stTabs [aria-selected="true"] {{ 
-        color: white !important; background-color: {tema['accent']} !important; border-color: {tema['accent']} !important;
+        color: white !important; 
+        background-color: {tema['accent']} !important; 
+        border-color: {tema['accent']} !important;
     }}
 
     /* --- GÖRSEL KONTEYNER --- */
     .image-container {{
         border: 1px solid {tema['border']}; border-radius: 12px; padding: 10px;
-        background-color: {tema['card_bg']}; text-align: center;
+        background-color: {tema['card_bg']} !important; 
+        text-align: center;
         margin-bottom: 15px; display: flex; justify-content: center; align-items: center;
     }}
     .container-header {{ font-weight: bold; margin-bottom: 10px; color: {tema['accent']} !important; }}
@@ -115,9 +141,10 @@ st.markdown(f"""
     /* --- FOOTER --- */
     .custom-footer {{ 
         position: fixed; left: 0; bottom: 0; width: 100%; 
-        background-color: {tema['bg']}; color: {tema['subtext']}; 
+        background-color: {tema['bg']} !important; 
+        color: {tema['subtext']} !important; 
         text-align: center; padding: 10px; font-size: 12px; 
-        border-top: 1px solid {tema['border']}; z-index: 999; transition: background-color 0.3s ease;
+        border-top: 1px solid {tema['border']}; z-index: 999;
     }}
     </style>
     """, unsafe_allow_html=True)
@@ -189,7 +216,6 @@ def yerel_islem(urun_resmi, islem_tipi):
     return bg
 
 # --- ANA BAŞLIK ---
-# Artık özel HTML yok, standart Streamlit başlığı var.
 st.title("ALPTECH AI Stüdyo")
 st.write("Ürününü ekle, hayaline göre profesyonel bir şekilde düzenle.")
 

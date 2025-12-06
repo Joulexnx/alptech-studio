@@ -6,6 +6,7 @@ from openai import OpenAI
 import requests
 import os
 from datetime import datetime
+import json
 import base64
 
 # ==========================================
@@ -21,56 +22,44 @@ else:
 # --- SAYFA AYARLARI ---
 st.set_page_config(page_title="ALPTECH AI Stüdyo", page_icon="🤖", layout="wide", initial_sidebar_state="collapsed")
 
-# --- SABİT KOYU TEMA PALETİ ---
-tema = {
-    "bg": "#0e1117", "text": "#ffffff", "subtext": "#b0b0b0", "card_bg": "#161616", "border": "#333333",
-    "accent": "#00BFFF", "button_hover": "#009ACD", "input_bg": "#262730"
-}
+# --- TEMA MANTIĞI ---
+col_bosluk, col_tema = st.columns([10, 1]) 
+with col_tema:
+    karanlik_mod = st.toggle("🌙 / ☀️", value=True, key="theme_toggle") 
 
-# --- TASARIM (SABİT KOYU CSS) ---
+if karanlik_mod:
+    tema = {
+        "bg": "#0e1117", "text": "#ffffff", "subtext": "#b0b0b0", "card_bg": "#161616", "border": "#333333",
+        "accent": "#00BFFF", "button_hover": "#009ACD", "input_bg": "#262730"
+    }
+else:
+    tema = {
+        "bg": "#f0f2f6", "text": "#262730", "subtext": "#555555", "card_bg": "#ffffff", "border": "#cccccc",
+        "accent": "#0078D4", "button_hover": "#0062A3", "input_bg": "#ffffff"
+    }
+
+# --- TASARIM (DİNAMİK CSS) ---
 st.markdown(f"""
     <style>
     /* --- GENEL SAYFA VE GİZLEME --- */
     .stApp {{ background-color: {tema['bg']}; }}
     .block-container {{ padding-top: 1.5rem; padding-bottom: 5rem; padding-left: 1rem; padding-right: 1rem; }}
     #MainMenu, footer, header, [data-testid="stToolbar"], [data-testid="stSidebar"] {{visibility: hidden !important;}}
-
-    /* --- YAZI RENK ZORLAMASI --- */
     h1, h2, h3, h4, p, li, span, div, label, .stMarkdown, .stText {{ color: {tema['text']} !important; }}
-    
-    /* --- INPUT VE SELECTBOX FİKSİ --- */
-    div[data-baseweb="select"] > div {{
-        background-color: {tema['input_bg']} !important;
-        color: {tema['text']} !important;
-        border-color: {tema['border']} !important;
-    }}
-    div[data-baseweb="popover"] {{ background-color: {tema['input_bg']} !important; }}
+    .stButton>button {{ background-color: {tema['accent']} !important; color: white !important;}}
+    .stTextArea textarea {{ background-color: {tema['input_bg']} !important; color: {tema['text']} !important; border: 1px solid {tema['border']} !important; }}
+    div[data-baseweb="select"] > div {{ background-color: {tema['input_bg']} !important; color: {tema['text']} !important; border-color: {tema['border']} !important; }}
     div[data-baseweb="popover"] div[role="listbox"] div[role="option"] {{ color: {tema['text']} !important; }}
-    .stTextArea textarea {{ 
-        border: 1px solid {tema['border']} !important; 
-        background-color: {tema['input_bg']} !important; color: {tema['text']} !important; 
-    }}
     
-    /* --- GÖRSEL KONTEYNER --- */
-    .image-container {{
-        border: 1px solid {tema['border']}; border-radius: 12px; padding: 10px;
-        background-color: {tema['card_bg']} !important; 
-        margin-bottom: 15px; display: flex; justify-content: center; align-items: center;
-    }}
-    .container-header {{ font-weight: bold; margin-bottom: 10px; color: {tema['accent']} !important; }}
-    
-    /* --- BAŞLIKLAR --- */
-    .app-title {{ color: {tema['accent']} !important; font-size: 2.5rem; font-weight: bold; }}
-    .app-subtitle {{ color: {tema['subtext']} !important; font-size: 1.1rem; }}
-
-    /* --- CHAT MESAJ ORTALAMA (YENİ) --- */
-    /* st.chat_message içindeki metin alanlarını hedef alarak ortalama */
-    [data-testid="stChatMessage"] [data-testid="stMarkdownContainer"] p, 
-    [data-testid="stChatMessage"] [data-testid="stMarkdownContainer"] div {{
+    /* CHAT ORTALAMA */
+    [data-testid="stChatMessage"] [data-testid="stMarkdownContainer"] p, [data-testid="stChatMessage"] [data-testid="stMarkdownContainer"] div {{
         text-align: center;
         width: 100%;
     }}
 
+    .image-container {{ border: 1px solid {tema['border']}; border-radius: 12px; padding: 10px; background-color: {tema['card_bg']} !important; }}
+    .container-header {{ color: {tema['accent']} !important; }}
+    
     /* --- FOOTER --- */
     .custom-footer {{ 
         position: fixed; left: 0; bottom: 0; width: 100%; 
@@ -84,10 +73,11 @@ st.markdown(f"""
 # --- OTURUM YÖNETİMİ ---
 if 'sonuc_gorseli' not in st.session_state: st.session_state.sonuc_gorseli = None
 if 'sonuc_format' not in st.session_state: st.session_state.sonuc_format = "PNG"
-if 'chat_history' not in st.session_state: st.session_state.chat_history = [{"role": "assistant", "content": "Merhaba! Hangi modu kullanmak istersiniz?"}]
+if 'chat_history' not in st.session_state: 
+    st.session_state.chat_history = [{"role": "assistant", "content": "Merhaba! Hangi modu kullanmak istersin?"}]
 if 'app_mode' not in st.session_state: st.session_state.app_mode = "📸 Stüdyo Modu (Görsel Düzenleme)"
 
-# --- İŞLEM HARİTASI ---
+# --- İŞLEM HARİTASI (Kısaltıldı) ---
 TEMA_LISTESI = {
     "🧹 Arka Planı Kaldır (Şeffaf)": "ACTION_TRANSPARENT", "⬛ Düz Siyah Fon (Mat)": "ACTION_BLACK", "⬜ Düz Beyaz Fon": "ACTION_WHITE", "🍦 Krem / Bej Fon": "ACTION_BEIGE",
     "🏛️ Mermer Zemin (Lüks)": "Professional product photography, close-up shot of the object placed on a polished white carrara marble podium. Soft cinematic lighting, realistic shadows, depth of field, 8k resolution, luxury aesthetic.",
@@ -98,26 +88,51 @@ TEMA_LISTESI = {
     "🌑 Karanlık Mod (Dark Studio)": "Professional product photography, object placed on a matte black non-reflective surface. Dark studio background, clean, dramatic rim lighting highlighting the object contours, minimal shadows, no reflections."
 }
 
-# --- FONKSİYONLAR ---
+# --- FONKSİYONLAR (Hafızalı Sohbet GÜNCELLENDİ) ---
 def turkce_zaman_getir():
     simdi = datetime.now()
     gunler = {0: "Pazartesi", 1: "Salı", 2: "Çarşamba", 3: "Perşembe", 4: "Cuma", 5: "Cumartesi", 6: "Pazar"}
     aylar = {1: "Ocak", 2: "Şubat", 3: "Mart", 4: "Nisan", 5: "Mayıs", 6: "Haziran", 7: "Temmuz", 8: "Ağustos", 9: "Eylül", 10: "Ekim", 11: "Kasım", 12: "Aralık"}
     return f"{simdi.day} {aylar[simdi.month]} {simdi.year}, {gunler[simdi.weekday()]}, Saat {simdi.strftime('%H:%M')}"
 
-def normal_sohbet(client, user_input):
+def normal_sohbet(client, chat_history):
+    """Chat geçmişini kullanarak daha insancıl ve kapsamlı cevaplar verir."""
     zaman_bilgisi = turkce_zaman_getir()
-    system_talimati = f"Sen ALPTECH AI adında yardımsever, zeki ve Türkçe konuşan bir asistansın. Şu anki sistem zamanı: {zaman_bilgisi}. Kullanıcıyla samimi ve Türkçe konuş."
+    
+    # 🌟 GÜNCELLENEN SİSTEM TALİMATI (Kapsamlı hale getirildi)
+    system_talimati = f"""
+    Sen ALPTECH AI adında cana yakın, esprili, pozitif ve ÇOK KAPSAMLI bir asistansın. 
+    Kullanıcının isteği doğrultusunda cevaplarının uzunluğunu ve detay seviyesini ayarla. 
+    
+    Yeteneklerin:
+    1. Detaylı Metin Üretimi: Şarkı, şiir, makale taslağı ve profesyonel e-posta gibi yaratıcı ve uzun metinleri, istenilen formatta ve kapsamda yaz. (Örneğin, şarkı istendiğinde dörtlük değil, tam bir şarkı yaz.)
+    2. Yazım ve Dilbilgisi Düzeltme: Kullanıcının hatalı yazdığı cümleleri veya metinleri tespit et ve doğru bir şekilde düzelt.
+    3. Derinlemesine Bilgi: Karmaşık sorulara kısa cevaplar yerine derinlemesine ve doyurucu açıklamalar sun.
+
+    Kullanıcının her mesajından sonra 'Size nasıl yardımcı olabilirim?' veya 'Sen nasılsın?' gibi tekrar eden, robotik ifadeler KULLANMA.
+    Selamlama (merhaba, selam) aldığında: Kısa ve samimi karşılık ver (Örn: "Selam! 👋" veya "Merhaba! 😊"), ardından sohbeti kullanıcıya bırak.
+    Kullanıcıyla samimi ve doğal bir sohbet akışı yakala. Emoji kullanmaktan çekinme.
+    ŞU ANKİ GERÇEK ZAMAN: {zaman_bilgisi}.
+    """
+    
+    # API'ye sadece son 10 mesajı gönder (context için)
+    messages = [{"role": "system", "content": system_talimati}]
+    
+    # Streamlit chat_history yapısından API formatına dönüştür
+    for msg in chat_history[-10:]:
+        api_role = "user" if msg["role"] == "user" else "assistant"
+        messages.append({"role": api_role, "content": msg["content"]})
+    
     try:
         response = client.chat.completions.create(
             model="gpt-3.5-turbo",
-            messages=[{"role": "system", "content": system_talimati}, {"role": "user", "content": user_input}]
+            messages=messages
         )
         return response.choices[0].message.content
     except Exception as e:
-        return "Bağlantı hatası oluştu."
+        return "Üzgünüm, şu an bağlantımda bir sorun var veya çok fazla deneme yaptınız."
 
-# GÖRSEL İŞLEM FONKSİYONLARI (Önceki koddan)
+# GÖRSEL İŞLEM FONKSİYONLARI (değişmedi)
 def resmi_hazirla(image):
     kare_resim = Image.new("RGBA", (1024, 1024), (0, 0, 0, 0))
     image.thumbnail((850, 850), Image.Resampling.LANCZOS) 
@@ -167,6 +182,7 @@ def yerel_islem(urun_resmi, islem_tipi):
 
 
 # --- ANA KOD GÖVDESİ ---
+
 st.title("ALPTECH AI Stüdyo")
 st.write("Ürününü ekle, hayaline göre profesyonel bir şekilde düzenle.")
 
@@ -184,7 +200,7 @@ with col_studio:
         type="primary" if is_studio_active else "secondary"
     ):
         st.session_state.app_mode = "📸 Stüdyo Modu (Görsel Düzenleme)"
-        st.session_state.sonuc_gorseli = None # Mod değişince eski sonucu temizle
+        st.session_state.sonuc_gorseli = None
         st.rerun()
 
 with col_chat:
@@ -195,13 +211,13 @@ with col_chat:
         type="primary" if is_chat_active else "secondary"
     ):
         st.session_state.app_mode = "💬 Sohbet Modu (Genel Asistan)"
-        st.session_state.sonuc_gorseli = None # Mod değişince eski sonucu temizle
+        st.session_state.sonuc_gorseli = None
         st.rerun()
 
 st.divider()
 
 if st.session_state.app_mode == "📸 Stüdyo Modu (Görsel Düzenleme)":
-    # --- STÜDYO MODU ---
+    # --- STÜDYO MODU KODLARI ---
     tab_yukle, tab_kamera = st.tabs(["📁 Dosya Yükle", "📷 Kamera"])
     kaynak_dosya = None
     with tab_yukle:
@@ -298,21 +314,20 @@ if st.session_state.app_mode == "📸 Stüdyo Modu (Görsel Düzenleme)":
                     st.rerun()
 
 elif st.session_state.app_mode == "💬 Sohbet Modu (Genel Asistan)":
-    # --- CHAT MODU ---
-    # Ortalanmış mesajlar CSS ile sağlanmıştır.
+    # --- CHAT MODU KODLARI ---
     for msg in st.session_state.chat_history:
         with st.chat_message(msg["role"]):
             st.write(msg["content"])
 
-    if prompt := st.chat_input("Bir soru sorun (Örn: Bugün günlerden ne?)"):
+    if prompt := st.chat_input("Mesaj yazın..."):
         st.session_state.chat_history.append({"role": "user", "content": prompt})
         with st.chat_message("user"):
             st.write(prompt)
 
         with st.chat_message("assistant"):
-            with st.spinner("ALPTECH düşünüyor..."):
+            with st.spinner("ALPTECH yazıyor..."):
                 client = OpenAI(api_key=SABIT_API_KEY)
-                cevap = normal_sohbet(client, prompt)
+                cevap = normal_sohbet(client, st.session_state.chat_history)
                 st.write(cevap)
                 st.session_state.chat_history.append({"role": "assistant", "content": cevap})
 

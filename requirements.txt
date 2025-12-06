@@ -1,6 +1,6 @@
 streamlit
-rembg[gpu]
-onnxruntime
+rembg
 pillow
 openai
 requests
+watchdog

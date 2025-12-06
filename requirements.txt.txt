@@ -1,0 +1,6 @@
+streamlit
+rembg[gpu]
+onnxruntime
+pillow
+openai
+requests

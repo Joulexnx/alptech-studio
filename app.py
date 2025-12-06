@@ -17,33 +17,59 @@ else:
 # ==========================================
 
 # --- SAYFA AYARLARI ---
-# Favicon 🤖 olarak ayarlandı.
-# Layout "wide" kalsın ama menüyü gizleyeceğiz.
-st.set_page_config(
-    page_title="ALPTECH AI Stüdyo",
-    page_icon="🤖",
-    layout="wide",
-    initial_sidebar_state="collapsed" # Yan menüyü başlangıçta kapalı tut
-)
+icon_path = "ALPTECHAI.png" if os.path.exists("ALPTECHAI.png") else "📸"
+st.set_page_config(page_title="ALPTECH AI Stüdyo", page_icon=icon_path, layout="wide", initial_sidebar_state="collapsed")
 
-# --- GELİŞMİŞ CSS (GİZLEME VE TASARIM) ---
-st.markdown("""
+# --- TEMA MANTIĞI ---
+# Sayfanın en tepesine, sağa yaslı bir toggle koyuyoruz
+col_bosluk, col_tema = st.columns([10, 1]) 
+with col_tema:
+    # Güneş/Ay ikonu ile geçiş
+    karanlik_mod = st.toggle("🌙 / ☀️", value=True)
+
+# Seçilen temaya göre renkleri belirle
+if karanlik_mod:
+    # --- KARANLIK MOD RENKLERİ ---
+    tema = {
+        "bg": "#0e1117",
+        "text": "white",
+        "subtext": "#b0b0b0",
+        "card_bg": "#161616",
+        "border": "#333",
+        "input_bg": "#1c1c1c",
+        "input_text": "white",
+        "uploader_border": "#00BFFF"
+    }
+else:
+    # --- AYDINLIK MOD RENKLERİ ---
+    tema = {
+        "bg": "#ffffff",
+        "text": "#000000",
+        "subtext": "#555555",
+        "card_bg": "#f8f9fa",
+        "border": "#e0e0e0",
+        "input_bg": "#ffffff",
+        "input_text": "black",
+        "uploader_border": "#007acc"
+    }
+
+# --- TASARIM (CSS) ---
+# CSS'i dinamik hale getirdik (f-string ile renkleri basıyoruz)
+st.markdown(f"""
     <style>
     /* Ana arka plan ve metin rengi */
-    .main { background-color: #0e1117; }
-    h1, h2, h3, h4, p { font-family: 'Helvetica', sans-serif; }
+    .main {{ background-color: {tema['bg']}; }}
+    h1, h2, h3, h4, p, label, .stMarkdown {{ font-family: 'Helvetica', sans-serif; color: {tema['text']} !important; }}
     
-    /* Sağ üstteki menüyü, footer'ı ve deploy butonunu GİZLE */
-    #MainMenu {visibility: hidden;}
-    footer {visibility: hidden;}
-    header {visibility: hidden;}
-    [data-testid="stToolbar"] {visibility: hidden !important;}
-    
-    /* Yan menüyü (Sidebar) tamamen GİZLE (Genişlik 0) */
-    [data-testid="stSidebar"] { display: none; }
+    /* Sağ üst menüleri gizle */
+    #MainMenu {{visibility: hidden;}}
+    footer {{visibility: hidden;}}
+    header {{visibility: hidden;}}
+    [data-testid="stToolbar"] {{visibility: hidden !important;}}
+    [data-testid="stSidebar"] {{ display: none; }}
 
     /* Butonlar */
-    .stButton>button { 
+    .stButton>button {{ 
         width: 100%; 
         border-radius: 8px; 
         font-weight: bold; 
@@ -51,89 +77,100 @@ st.markdown("""
         background-color: #00BFFF; 
         color: white; 
         border: none;
-    }
-    .stButton>button:hover { background-color: #009ACD; }
+    }}
+    .stButton>button:hover {{ background-color: #009ACD; }}
 
-    /* Seçim Kutuları */
-    .stSelectbox { border-radius: 8px; }
-    .stTextArea textarea { border-radius: 8px; border: 1px solid #444; background-color: #1c1c1c; color: white; }
+    /* Seçim Kutuları ve Inputlar */
+    .stSelectbox, .stTextInput {{ border-radius: 8px; }}
+    .stTextArea textarea {{ 
+        border-radius: 8px; 
+        border: 1px solid {tema['border']}; 
+        background-color: {tema['input_bg']}; 
+        color: {tema['input_text']}; 
+    }}
+    /* Dropdown menü içi */
+    div[data-baseweb="select"] > div {{
+        background-color: {tema['input_bg']};
+        color: {tema['input_text']};
+        border-color: {tema['border']};
+    }}
     
     /* Dosya Yükleyici */
-    .stFileUploader { 
-        border: 2px dashed #00BFFF; 
+    .stFileUploader {{ 
+        border: 2px dashed {tema['uploader_border']}; 
         border-radius: 12px; 
         padding: 30px; 
         text-align: center; 
-        background-color: #161616;
-    }
+        background-color: {tema['card_bg']};
+    }}
+    .stFileUploader label {{ color: {tema['text']} !important; }}
     
     /* Sekme Tasarımı */
-    .stTabs [data-baseweb="tab-list"] { justify-content: center; gap: 15px; margin-bottom: 20px; }
-    .stTabs [data-baseweb="tab"] { 
+    .stTabs [data-baseweb="tab-list"] {{ justify-content: center; gap: 15px; margin-bottom: 20px; }}
+    .stTabs [data-baseweb="tab"] {{ 
         font-size: 16px; 
         font-weight: bold; 
         color: #888; 
         background-color: transparent; 
-        border: 1px solid #333;
+        border: 1px solid {tema['border']};
         border-radius: 20px;
         padding: 8px 20px;
-    }
-    .stTabs [aria-selected="true"] { 
-        color: white; 
+    }}
+    .stTabs [aria-selected="true"] {{ 
+        color: white !important; 
         background-color: #00BFFF; 
         border-color: #00BFFF;
-    }
+    }}
 
     /* Görsel Konteyner */
-    .image-container {
-        border: 1px solid #333;
+    .image-container {{
+        border: 1px solid {tema['border']};
         border-radius: 12px;
         padding: 10px;
-        background-color: #161616;
+        background-color: {tema['card_bg']};
         text-align: center;
         margin-bottom: 15px;
         display: flex;
         justify-content: center;
         align-items: center;
-    }
+    }}
     
     /* Başlık ve Logo Alanı */
-    .logo-header {
+    .logo-header {{
         text-align: center;
         padding: 20px 0;
         margin-bottom: 20px;
-    }
-    .logo-img {
+    }}
+    .logo-img {{
         max-width: 200px;
         margin-bottom: 10px;
-    }
-    .app-title {
-        color: #00BFFF;
+    }}
+    .app-title {{
+        color: #00BFFF !important;
         font-size: 2.5rem;
         font-weight: bold;
         margin: 0;
-    }
-    .app-subtitle {
-        color: #b0b0b0;
+    }}
+    .app-subtitle {{
+        color: {tema['subtext']} !important;
         font-size: 1.1rem;
         font-weight: 300;
         margin-top: 5px;
-    }
+    }}
 
-    /* Özel Footer */
-    .custom-footer { 
+    .footer {{ 
         position: fixed; 
         left: 0; 
         bottom: 0; 
         width: 100%; 
-        background-color: #0e1117; 
-        color: gray; 
+        background-color: {tema['bg']}; 
+        color: {tema['subtext']}; 
         text-align: center; 
         padding: 10px; 
         font-size: 12px; 
-        border-top: 1px solid #333; 
+        border-top: 1px solid {tema['border']}; 
         z-index: 999; 
-    }
+    }}
     </style>
     """, unsafe_allow_html=True)
 
@@ -170,6 +207,11 @@ def bayt_cevir(image):
     return buf.getvalue()
 
 def sahne_olustur(client, urun_resmi, prompt_text):
+    # Hafıza dostu temizleme
+    max_boyut = 1200
+    if urun_resmi.width > max_boyut or urun_resmi.height > max_boyut:
+        urun_resmi.thumbnail((max_boyut, max_boyut), Image.Resampling.LANCZOS)
+    
     temiz_urun = remove(urun_resmi, alpha_matting=True, alpha_matting_foreground_threshold=240, alpha_matting_background_threshold=10)
     hazir_urun = resmi_hazirla(temiz_urun)
     maske_ham = hazir_urun.split()[3]
@@ -187,6 +229,10 @@ def sahne_olustur(client, urun_resmi, prompt_text):
     return response.data[0].url
 
 def yerel_islem(urun_resmi, islem_tipi):
+    max_boyut = 1200
+    if urun_resmi.width > max_boyut or urun_resmi.height > max_boyut:
+        urun_resmi.thumbnail((max_boyut, max_boyut), Image.Resampling.LANCZOS)
+
     temiz_urun = remove(urun_resmi, alpha_matting=True, alpha_matting_foreground_threshold=240, alpha_matting_background_threshold=10)
     if islem_tipi == "ACTION_TRANSPARENT": return temiz_urun
     renkler = {"ACTION_WHITE": (255, 255, 255), "ACTION_BLACK": (0, 0, 0), "ACTION_BEIGE": (245, 245, 220)}
@@ -195,11 +241,9 @@ def yerel_islem(urun_resmi, islem_tipi):
     bg.paste(temiz_urun, mask=temiz_urun)
     return bg
 
-# --- ÖZEL BAŞLIK ALANI (Logo Entegrasyonu) ---
-# Sidebar yerine logoyu ve başlığı buraya koyuyoruz
+# --- ÖZEL BAŞLIK ALANI (Logo) ---
 logo_html = ""
 if os.path.exists("ALPTECHAI.png"):
-    # Logoyu base64'e çevirip HTML içine gömelim ki düzgün görünsün
     import base64
     with open("ALPTECHAI.png", "rb") as f:
         data = base64.b64encode(f.read()).decode("utf-8")
@@ -222,8 +266,6 @@ with tab_yukle:
     if uploaded_file: kaynak_dosya = uploaded_file
 
 with tab_kamera:
-    # Kamera İzni: Streamlit bunu otomatik yönetir.
-    # Kullanıcı ilk tıkladığında tarayıcı izin ister.
     camera_file = st.camera_input("Ürünü Çek")
     if camera_file: kaynak_dosya = camera_file
 
@@ -318,4 +360,4 @@ if kaynak_dosya:
                 st.rerun()
 
 # Footer
-st.markdown("<div class='custom-footer'>ALPTECH AI Stüdyo © 2025 | Developed by Alper</div>", unsafe_allow_html=True)
+st.markdown("<div class='footer'>ALPTECH AI Stüdyo © 2025 | Developed by Alper</div>", unsafe_allow_html=True)

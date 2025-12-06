@@ -2,7 +2,7 @@
 File: app.py
 ALPTECH AI Stüdyo — Apple-style, e-ticaret odaklı temalar + logo
 - WorldTimeAPI ile gerçek TR saati
-- OpenWeather Geocoding + Current Weather entegrasyonu
+- OpenWeather Geocoding + Current Weather + 7 günlük Forecast (One Call 3.0)
 """
 
 from __future__ import annotations
@@ -123,7 +123,7 @@ def apply_apple_css(tema: dict):
         color: {tema['text']} !important;
     }}
 
-    /* Chat balonlarını daha okunur yap */
+    /* Chat balonları */
     [data-testid="stChatMessage"] {{
         border-radius: 16px;
         padding: 6px 12px;
@@ -136,6 +136,19 @@ def apply_apple_css(tema: dict):
     [data-testid="stChatMessage"] span,
     [data-testid="stChatMessage"] div {{
         color: {tema['text']} !important;
+    }}
+
+    /* Chat input görünür olsun (koyu mod fix) */
+    [data-testid="stChatInput"] textarea,
+    [data-testid="stChatInput"] input {{
+        background: {tema['input_bg']} !important;
+        color: {tema['text']} !important;
+        border-radius: 999px !important;
+    }}
+    [data-testid="stChatInput"] textarea::placeholder,
+    [data-testid="stChatInput"] input::placeholder {{
+        color: {tema['subtext']} !important;
+        opacity: 1 !important;
     }}
 
     .custom-footer {{
@@ -245,7 +258,6 @@ def fetch_tr_time() -> datetime:
         )
         if resp.status_code == 200:
             data = resp.json()
-            # örnek: "2025-12-06T23:37:40.872507+03:00"
             dt_str = data.get("datetime")
             if dt_str:
                 return datetime.fromisoformat(dt_str)
@@ -311,12 +323,12 @@ def resolve_city_to_coords(city: str, limit: int = 1):
 
 
 def get_weather_answer(location: str | None = None) -> str:
+    """Anlık hava durumu."""
     if not WEATHER_API_KEY:
         return "Şu an hava durumu bilgisini veremiyorum; sisteme hava durumu API anahtarı ekli değil. 🌤️"
 
     sehir = location or WEATHER_DEFAULT_CITY or "İstanbul"
 
-    # Önce geocoding ile koordinat al
     coords = resolve_city_to_coords(sehir)
     try:
         if coords:
@@ -326,7 +338,6 @@ def get_weather_answer(location: str | None = None) -> str:
                 f"?lat={lat}&lon={lon}&appid={WEATHER_API_KEY}&units=metric&lang=tr"
             )
         else:
-            # Fallback: doğrudan city name (deprecated ama çalışıyor)
             url = (
                 "https://api.openweathermap.org/data/2.5/weather"
                 f"?q={sehir}&appid={WEATHER_API_KEY}&units=metric&lang=tr"
@@ -354,6 +365,53 @@ def get_weather_answer(location: str | None = None) -> str:
         return "Hava durumu servisinde bir sorun oluştu; lütfen daha sonra tekrar dene."
 
 
+def get_weather_forecast_answer(location: str | None = None, days: int = 7) -> str:
+    """7 günlük hava durumu (OpenWeather One Call 3.0)."""
+    if not WEATHER_API_KEY:
+        return "Şu an hava durumu bilgisini veremiyorum; sisteme hava durumu API anahtarı ekli değil. 🌤️"
+
+    sehir = location or WEATHER_DEFAULT_CITY or "İstanbul"
+    coords = resolve_city_to_coords(sehir)
+    if not coords:
+        return f"{sehir} için konum bilgisi alınamadı; lütfen farklı bir şehir adı dene."
+
+    lat, lon = coords
+    try:
+        url = (
+            "https://api.openweathermap.org/data/3.0/onecall"
+            f"?lat={lat}&lon={lon}&exclude=minutely,hourly,alerts"
+            f"&appid={WEATHER_API_KEY}&units=metric&lang=tr"
+        )
+        resp = requests.get(url, timeout=10)
+        if resp.status_code != 200:
+            return f"{sehir} için 7 günlük hava tahmini alınamadı."
+
+        data = resp.json()
+        daily = data.get("daily", [])
+        if not daily:
+            return f"{sehir} için günlük tahmin verisi bulunamadı."
+
+        gun_sayisi = min(days, len(daily))
+        lines = [f"📍 **{sehir} için 7 günlük hava tahmini:**"]
+        for i in range(gun_sayisi):
+            d = daily[i]
+            dt = datetime.fromtimestamp(d["dt"], ZoneInfo("Europe/Istanbul"))
+            tarih = dt.strftime("%d.%m.%Y %a")
+            min_t = d["temp"]["min"]
+            max_t = d["temp"]["max"]
+            desc = d["weather"][0]["description"].capitalize()
+            lines.append(
+                f"- **{tarih}** → {desc}, min **{min_t:.1f}°C**, max **{max_t:.1f}°C**"
+            )
+
+        return "\n".join(lines)
+    except Exception:
+        return "7 günlük hava tahmini alınırken bir sorun oluştu; lütfen daha sonra tekrar dene."
+
+
+# ----------------------------
+# KİMLİK & YARDIMCI CEVAPLAR
+# ----------------------------
 def custom_identity_interceptor(user_message: str) -> str | None:
     triggers = [
         "seni kim yaptı",
@@ -382,6 +440,15 @@ def custom_utility_interceptor(user_message: str) -> str | None:
     if "saat" in msg or "tarih" in msg or "tarihi ve saati" in msg:
         return get_time_answer()
 
+    if "haftalık hava" in msg or "7 günlük hava" in msg or "7 gunluk hava" in msg:
+        known_cities = ["istanbul", "ankara", "izmir", "bursa", "antalya", "adana"]
+        city_found = None
+        for c in known_cities:
+            if c in msg:
+                city_found = c.capitalize()
+                break
+        return get_weather_forecast_answer(city_found)
+
     if "hava" in msg or "hava durumu" in msg or "hava nasıl" in msg:
         known_cities = ["istanbul", "ankara", "izmir", "bursa", "antalya", "adana"]
         city_found = None
@@ -400,15 +467,15 @@ def build_system_talimati():
     Senin adın **ALPTECH AI**.
     ALPTECH AI ekibi tarafından geliştirilen, modern ve profesyonel bir yapay zeka asistansın.
 
+    Odakların:
+    - Ürün görselleri üzerinde çalışma (arka plan kaldırma, sahne oluşturma).
+    - E-ticaret odaklı metinler yazma ve düzenleme.
+    - Genel sorularda açıklayıcı, sade cevaplar verme.
+
     - Her zaman kendini "ALPTECH AI" olarak tanıt.
     - Seni kimin geliştirdiği sorulduğunda: "ALPTECH AI ekibi" de.
     - Arka plandaki teknolojiden bahsetme; markayı öne çıkar.
     - Türkçe varsayılan dilin; kullanıcı başka dilde yazarsa o dilde devam et.
-
-    Konuşma tarzın:
-    - Samimi ama profesyonel, net ve anlaşılır.
-    - Emojileri ölçülü kullan.
-    - Teknik konularda adım adım anlat.
 
     Sistem notu: Bu yanıtlar {zaman_bilgisi} tarihinde oluşturuluyor.
     """
@@ -792,8 +859,8 @@ elif st.session_state.app_mode == "💬 Sohbet Modu (Genel Asistan)":
     with qc1:
         if st.button("🎨 Prompt öner"):
             quick_prompt = (
-                "Ürün fotoğrafçılığı için 5 farklı yaratıcı sahne fikri önerir misin? "
-                "Her sahne için kısa açıklama ve ışık önerisi de ekle."
+                "Stüdyo modunda ürün fotoğrafçılığı için 5 farklı yaratıcı sahne fikri "
+                "önerir misin? Her sahne için kısa açıklama ve ışık önerisi de ekle."
             )
     with qc2:
         if st.button("📝 Ürün metni yaz"):
@@ -804,8 +871,10 @@ elif st.session_state.app_mode == "💬 Sohbet Modu (Genel Asistan)":
     with qc3:
         if st.button("❓ Bu uygulama ne yapar?"):
             quick_prompt = (
-                "Bu ALPTECH AI Stüdyo uygulaması ile neler yapabileceğimi, "
-                "özellikle stüdyo modu ve sohbet modunu, basit ve anlaşılır şekilde anlat."
+                "Bu ALPTECH AI Stüdyo uygulaması ile neler yapabileceğimi detaylı anlat. "
+                "Özellikle: ürün görseli yükleme, arka planı kaldırma, hazır stüdyo temaları "
+                "ile sahne oluşturma, sonucu indirme ve sohbet modunda sana soru sorma "
+                "özelliklerini açıkla."
             )
 
     for msg in st.session_state.chat_history:

@@ -51,9 +51,9 @@ st.markdown(f"""
     div[data-baseweb="select"] > div {{ background-color: {tema['input_bg']} !important; color: {tema['text']} !important; border-color: {tema['border']} !important; }}
     div[data-baseweb="popover"] div[role="listbox"] div[role="option"] {{ color: {tema['text']} !important; }}
     
-    /* CHAT ORTALAMA (SOL HİZALI) */
+    /* CHAT ORTALAMA */
     [data-testid="stChatMessage"] [data-testid="stMarkdownContainer"] p, [data-testid="stChatMessage"] [data-testid="stMarkdownContainer"] div {{
-        text-align: left !important;
+        text-align: center;
         width: 100%;
     }}
 
@@ -88,7 +88,7 @@ TEMA_LISTESI = {
     "🌑 Karanlık Mod (Dark Studio)": "Professional product photography, object placed on a matte black non-reflective surface. Dark studio background, clean, dramatic rim lighting highlighting the object contours, minimal shadows, no reflections."
 }
 
-# --- FONKSİYONLAR (GÜÇLENDİRİLDİ) ---
+# --- FONKSİYONLAR (Hafızalı Sohbet GÜNCELLENDİ) ---
 def turkce_zaman_getir():
     simdi = datetime.now()
     gunler = {0: "Pazartesi", 1: "Salı", 2: "Çarşamba", 3: "Perşembe", 4: "Cuma", 5: "Cumartesi", 6: "Pazar"}
@@ -101,24 +101,24 @@ def normal_sohbet(client, chat_history):
     
     # 🌟 GÜNCELLENEN SİSTEM TALİMATI (Kapsamlı hale getirildi)
     system_talimati = f"""
-    SENİN ROLÜN: ALPTECH AI'ın yüksek seviyeli, Türkçe konuşan, esprili ve son derece yetenekli ana asistanısın. Müşterinin tüm yaratıcı, profesyonel ve bilgiye dayalı ihtiyaçlarını karşıla.
+    Sen ALPTECH AI adında cana yakın, esprili, pozitif ve ÇOK KAPSAMLI bir asistansın. 
+    Kullanıcının isteği doğrultusunda cevaplarının uzunluğunu ve detay seviyesini ayarla. 
     
-    KAPSAMLI YETENEKLER:
-    1.  Yaratıcı Üretim: Şarkı, şiir, makale taslağı ve profesyonel e-posta gibi uzun metinleri istenilen formatta ve yapıda (Verse, Nakarat vb.) detaylıca yaz.
-    2.  Dil Uzmanlığı: Kullanıcının sunduğu herhangi bir metni (cümle, paragraf, mail taslağı) dilbilgisi, yazım hataları ve akıcılık açısından kontrol et ve düzelt.
-    3.  Derinlemesine Bilgi: Karmaşık sorulara kısa cevaplar yerine doyurucu açıklamalar sun.
+    Yeteneklerin:
+    1. Detaylı Metin Üretimi: Şarkı, şiir, makale taslağı ve profesyonel e-posta gibi yaratıcı ve uzun metinleri, istenilen formatta ve kapsamda yaz. (Örneğin, şarkı istendiğinde dörtlük değil, tam bir şarkı yaz.)
+    2. Yazım ve Dilbilgisi Düzeltme: Kullanıcının hatalı yazdığı cümleleri veya metinleri tespit et ve doğru bir şekilde düzelt.
+    3. Derinlemesine Bilgi: Karmaşık sorulara kısa cevaplar yerine derinlemesine ve doyurucu açıklamalar sun.
 
-    KONUŞMA KURALLARI:
-    1.  Samimiyet: Cana yakın, pozitif ve doğal bir sohbet akışı yakala. Emoji kullan.
-    2.  Tekrarı Önleme: 'Size nasıl yardımcı olabilirim?' gibi robotik ifadeler KULLANMA.
-    3.  Selamlama: Selamlara kısa ve samimi karşılık ver (Örn: "Selam! 👋" veya "Merhaba! 😊"), sohbeti kullanıcıya bırak.
-    4.  Zaman Bilgisi: Sistemi zaman bilgisi: {zaman_bilgisi}. Bu bilgiyi sadece kullanıcı sorduğunda kullan.
-    
-    Cevaplarının uzunluğunu ve detayını, isteğin kapsamına göre ayarla (Mail/Şarkı istenirse uzun, soru istenirse net ol).
+    Kullanıcının her mesajından sonra 'Size nasıl yardımcı olabilirim?' veya 'Sen nasılsın?' gibi tekrar eden, robotik ifadeler KULLANMA.
+    Selamlama (merhaba, selam) aldığında: Kısa ve samimi karşılık ver (Örn: "Selam! 👋" veya "Merhaba! 😊"), ardından sohbeti kullanıcıya bırak.
+    Kullanıcıyla samimi ve doğal bir sohbet akışı yakala. Emoji kullanmaktan çekinme.
+    ŞU ANKİ GERÇEK ZAMAN: {zaman_bilgisi}.
     """
     
+    # API'ye sadece son 10 mesajı gönder (context için)
     messages = [{"role": "system", "content": system_talimati}]
     
+    # Streamlit chat_history yapısından API formatına dönüştür
     for msg in chat_history[-10:]:
         api_role = "user" if msg["role"] == "user" else "assistant"
         messages.append({"role": api_role, "content": msg["content"]})
@@ -132,7 +132,7 @@ def normal_sohbet(client, chat_history):
     except Exception as e:
         return "Üzgünüm, şu an bağlantımda bir sorun var veya çok fazla deneme yaptınız."
 
-# GÖRSEL İŞLEM FONKSİYONLARI (kısaltıldı)
+# GÖRSEL İŞLEM FONKSİYONLARI (değişmedi)
 def resmi_hazirla(image):
     kare_resim = Image.new("RGBA", (1024, 1024), (0, 0, 0, 0))
     image.thumbnail((850, 850), Image.Resampling.LANCZOS) 
@@ -183,15 +183,8 @@ def yerel_islem(urun_resmi, islem_tipi):
 
 # --- ANA KOD GÖVDESİ ---
 
-with col_baslik:
-    st.markdown(f'<h1 class="app-title">ALPTECH AI Stüdyo</h1>', unsafe_allow_html=True)
-    st.markdown(f'<p class="app-subtitle">Ürününü ekle, hayaline göre profesyonel bir şekilde düzenle.</p>', unsafe_allow_html=True)
-
-with col_toggle:
-    st.markdown('<div style="padding-top: 15px;"></div>', unsafe_allow_html=True)
-    st.toggle("🌙 / ☀️", value=True, key="theme_toggle")
-
-st.write("") 
+st.title("ALPTECH AI Stüdyo")
+st.write("Ürününü ekle, hayaline göre profesyonel bir şekilde düzenle.")
 
 # --- MOD SEÇİMİ (Butonlu Yöntem) ---
 col_studio, col_chat = st.columns([1, 1], gap="small")

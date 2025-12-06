@@ -24,13 +24,8 @@ st.set_page_config(page_title="ALPTECH AI Stüdyo", page_icon=icon_path, layout=
 # --- TEMA MANTIĞI ---
 col_bosluk, col_tema = st.columns([10, 1]) 
 with col_tema:
-    # 1. LOGO ALANI (En sağa alındı ve boyutlandı)
-    if os.path.exists("ALPTECHAI.png"):
-        # Logoyu küçültülmüş boyutta göster (40px)
-        st.image("ALPTECHAI.png", width=40)
-    
-    # 2. TEMA TOGGLE (Hemen altına)
-    karanlik_mod = st.toggle("🌙 / ☀️", value=True)
+    # HATA ÇÖZÜMÜ: Benzersiz key eklendi
+    karanlik_mod = st.toggle("🌙 / ☀️", value=True, key="theme_toggle") 
 
 # --- RENK PALETLERİ ---
 if karanlik_mod:
@@ -47,7 +42,7 @@ else:
 # --- TASARIM (DİNAMİK CSS) ---
 st.markdown(f"""
     <style>
-    /* --- GENEL SAYFA VE BOŞLUK FİKSİ --- */
+    /* --- GENEL SAYFA VE GİZLEME --- */
     .stApp {{ background-color: {tema['bg']}; }}
     .block-container {{ padding-top: 1.5rem; padding-bottom: 5rem; padding-left: 1rem; padding-right: 1rem; }}
     #MainMenu, footer, header, [data-testid="stToolbar"], [data-testid="stSidebar"] {{visibility: hidden !important;}}
@@ -55,19 +50,14 @@ st.markdown(f"""
     /* --- YAZI RENK ZORLAMASI --- */
     h1, h2, h3, h4, p, li, span, div, label, .stMarkdown, .stText {{ color: {tema['text']} !important; }}
     
-    /* --- SELECTBOX TEXT FİKSİ (KRİTİK) --- */
-    /* Selectbox'ın kendi input alanı */
+    /* --- SELECTBOX TEXT FİKSİ --- */
     div[data-baseweb="select"] > div {{
         background-color: {tema['input_bg']} !important;
-        color: {tema['text']} !important; /* SEÇİLİ YAZIYI ZORLA BEYAZ/SİYAH YAPAR */
+        color: {tema['text']} !important;
         border-color: {tema['border']} !important;
     }}
-    /* Dropdown listesi (açılır menü) ve içindeki yazı rengi */
-    div[data-baseweb="popover"] {{
-        background-color: {tema['input_bg']} !important; /* Açılan menü zemini */
-    }}
     div[data-baseweb="popover"] div[role="listbox"] div[role="option"] {{
-        color: {tema['text']} !important; /* Seçenek metin rengi */
+        color: {tema['text']} !important;
     }}
     
     /* --- GÖRSEL KONTEYNER --- */
@@ -76,10 +66,7 @@ st.markdown(f"""
         background-color: {tema['card_bg']} !important; 
         margin-bottom: 15px; display: flex; justify-content: center; align-items: center;
     }}
-
-    /* --- BAŞLIKLAR (Merkez) --- */
-    .app-title {{ color: {tema['accent']} !important; font-size: 2.5rem; font-weight: bold; }}
-    .app-subtitle {{ color: {tema['subtext']} !important; font-size: 1.1rem; }}
+    .container-header {{ font-weight: bold; margin-bottom: 10px; color: {tema['accent']} !important; }}
 
     /* --- FOOTER --- */
     .custom-footer {{ 
@@ -160,26 +147,19 @@ def yerel_islem(urun_resmi, islem_tipi):
 # Logoyu ve başlığı aynı anda yerleştiriyoruz.
 col_logo_sol, col_baslik, col_toggle = st.columns([1, 8, 1])
 
-# 1. LOGO ALANI (Sol)
-with col_logo_sol:
-    if os.path.exists("ALPTECHAI.png"):
-        st.markdown('<div style="padding-top: 15px;"></div>', unsafe_allow_html=True)
-        st.image("ALPTECHAI.png", width=60)
-    else:
-        st.title("ALPTECH") 
+# 1. LOGO ALANI (Sol - Artık yok)
 
 # 2. BAŞLIKLAR (Merkez)
 with col_baslik:
-    st.markdown(f'<div style="padding-top: 10px;"></div>', unsafe_allow_html=True) 
     st.markdown(f'<h1 class="app-title">ALPTECH AI Stüdyo</h1>', unsafe_allow_html=True)
     st.markdown(f'<p class="app-subtitle">Ürününü ekle, hayaline göre profesyonel bir şekilde düzenle.</p>', unsafe_allow_html=True)
 
-# 3. TEMA TOGGLE (Sağ)
+# 3. TEMA TOGGLE (Sağ) - Logo artık burada (Basitçe alt alta)
 with col_toggle:
-    # Logo yoksa bile toggle görünür
-    st.markdown('<div style="padding-top: 15px;"></div>', unsafe_allow_html=True)
-    st.toggle("🌙 / ☀️", value=True)
-
+    if os.path.exists("ALPTECHAI.png"):
+        st.image("ALPTECHAI.png", width=40) # Küçültülmüş logo
+    st.toggle("🌙 / ☀️", value=True, key="tema_toggle")
+    
 st.write("") 
 
 # --- GİRİŞ SEKMELERİ ---

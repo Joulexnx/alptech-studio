@@ -1,32 +1,19 @@
 """
 File: app.py
 ALPTECH AI Stüdyo — Apple-style full single-file revision + marka kimliği + yardımcı fonksiyonlar
-- Mantık: Orijinal akış korunmuştur (Studio + Chat).
-- Ekler:
-    * ALPTECH AI marka kişiliği
-    * "Seni kim yaptı?" interceptor (OpenAI yerine ALPTECH AI cevabı)
-    * Gerçek zamanlı tarih/saat (Python datetime)
-    * Hava durumu (OpenWeatherMap API ile, opsiyonel)
-    * Chat hızlı komut butonları
-    * Studio modunda demo görsel
-- Gereksinimler:
-    pip install streamlit rembg pillow openai requests
-- Kullanım:
-    - st.secrets["OPENAI_API_KEY"] ekleyin (Chat + AI sahne için).
-    - (Opsiyonel) st.secrets["OPENAI_MODEL"] = "gpt-4o-mini" vb.
-    - (Opsiyonel) st.secrets["WEATHER_API_KEY"] = "<OpenWeatherMap key>"
-    - (Opsiyonel) st.secrets["WEATHER_DEFAULT_CITY"] = "İstanbul"
 """
+
 from __future__ import annotations
 
 import traceback
 from datetime import datetime
 from io import BytesIO
+from zoneinfo import ZoneInfo  # TR saati için
 
 import requests
 import streamlit as st
 from openai import OpenAI
-from PIL import Image, ImageOps, ImageFilter, ImageDraw
+from PIL import Image, ImageOps, ImageFilter
 from rembg import remove
 
 # ----------------------------
@@ -35,7 +22,7 @@ from rembg import remove
 if "OPENAI_API_KEY" in st.secrets:
     SABIT_API_KEY = st.secrets["OPENAI_API_KEY"]
 else:
-    SABIT_API_KEY = None  # Chat ve AI sahne yok ama UI çalışsın
+    SABIT_API_KEY = None
     st.warning("⚠️ OPENAI_API_KEY tanımlı değil. Sohbet ve AI sahne düzenleme devre dışı.")
 
 DEFAULT_MODEL = st.secrets.get("OPENAI_MODEL", "gpt-4o-mini")
@@ -156,7 +143,7 @@ if "app_mode" not in st.session_state:
     st.session_state.app_mode = "📸 Stüdyo Modu (Görsel Düzenleme)"
 
 # ----------------------------
-# TEMA LISTESI (korundu)
+# TEMA LISTESI
 # ----------------------------
 TEMA_LISTESI = {
     "🧹 Arka Planı Kaldır (Şeffaf)": "ACTION_TRANSPARENT",
@@ -175,7 +162,7 @@ TEMA_LISTESI = {
 # ZAMAN / HAVA / MARKA YARDIMCI FONKS.
 # ----------------------------
 def turkce_zaman_getir():
-    simdi = datetime.now()
+    simdi = datetime.now(ZoneInfo("Europe/Istanbul"))
     gunler = {
         0: "Pazartesi",
         1: "Salı",
@@ -202,39 +189,14 @@ def turkce_zaman_getir():
     return f"{simdi.day} {aylar[simdi.month]} {simdi.year}, {gunler[simdi.weekday()]}, Saat {simdi.strftime('%H:%M')}"
 
 def get_time_answer() -> str:
-    simdi = datetime.now()
-    gunler = [
-        "Pazartesi",
-        "Salı",
-        "Çarşamba",
-        "Perşembe",
-        "Cuma",
-        "Cumartesi",
-        "Pazar",
-    ]
-    aylar = [
-        "",
-        "Ocak",
-        "Şubat",
-        "Mart",
-        "Nisan",
-        "Mayıs",
-        "Haziran",
-        "Temmuz",
-        "Ağustos",
-        "Eylül",
-        "Ekim",
-        "Kasım",
-        "Aralık",
-    ]
-    tarih_str = f"{simdi.day} {aylar[simdi.month]} {simdi.year}, {gunler[simdi.weekday()]}"
+    simdi = datetime.now(ZoneInfo("Europe/Istanbul"))
+    tarih_str = simdi.strftime("%d.%m.%Y")
     saat_str = simdi.strftime("%H:%M")
-    return f"Bugünün tarihi {tarih_str}. Saat şu an {saat_str}."
+    return f"Sistem saatine göre tarih {tarih_str}. Şu an saat {saat_str}."
 
 def get_weather_answer(location: str | None = None) -> str:
     if not WEATHER_API_KEY:
-        return "Hava durumu bilgisini vermek için bir hava durumu API anahtarı tanımlı değil. (WEATHER_API_KEY)."
-
+        return "Şu an hava durumu bilgisini sağlayamıyorum; sistemde hava durumu servisi ayarlı değil."
     sehir = location or WEATHER_DEFAULT_CITY or "İstanbul"
     try:
         url = (
@@ -243,7 +205,7 @@ def get_weather_answer(location: str | None = None) -> str:
         )
         resp = requests.get(url, timeout=10)
         if resp.status_code != 200:
-            return f"Hava durumu alınamadı (HTTP {resp.status_code}). Lütfen daha sonra tekrar dene."
+            return "Şu an hava durumu bilgisini alamadım; lütfen daha sonra tekrar dene."
         data = resp.json()
         derece = data["main"]["temp"]
         durum = data["weather"][0]["description"]
@@ -251,14 +213,12 @@ def get_weather_answer(location: str | None = None) -> str:
         nem = data["main"].get("humidity", None)
         base = f"{sehir} için güncel hava durumu: {durum}, sıcaklık {derece:.1f}°C (hissedilen {his:.1f}°C)."
         if nem is not None:
-            base += f" Nem oranı %{nem} civarında."
+            base += f" Nem oranı yaklaşık %{nem}."
         return base
-    except Exception as exc:
-        print("weather error:", exc, traceback.format_exc())
-        return "Hava durumu alınırken bir hata oluştu. Lütfen daha sonra tekrar dene."
+    except Exception:
+        return "Hava durumu bilgisi alınırken bir hata oluştu; lütfen biraz sonra tekrar dene."
 
 def custom_identity_interceptor(user_message: str) -> str | None:
-    """Kimlik sorularında ALPTECH AI cevabını zorlar."""
     triggers = [
         "seni kim yaptı",
         "seni kim yarattı",
@@ -274,25 +234,18 @@ def custom_identity_interceptor(user_message: str) -> str | None:
     if any(t in msg for t in triggers):
         return (
             "Beni **ALPTECH AI** ekibi geliştirdi 🚀\n\n"
-            "Ben, senin için tasarlanmış akıllı bir asistansım; işlerini hızlandırmak, "
-            "sorularını cevaplamak ve üretkenliğini artırmak için buradayım. 😊"
+            "Senin için tasarlanmış akıllı bir asistansın; işlerini hızlandırmak, "
+            "sorularına yanıt vermek ve üretkenliğini artırmak için buradayım. 😊"
         )
     return None
 
 def custom_utility_interceptor(user_message: str) -> str | None:
-    """
-    Tarih/saat ve hava durumu gibi 'gerçek zamanlı' istekleri,
-    model yerine doğrudan Python + API ile cevaplar.
-    """
     msg = user_message.lower()
 
-    # Tarih / saat
-    if ("tarih" in msg or "saat kaç" in msg or "saat kaç?" in msg or "tarihi ve saati" in msg) and "hava" not in msg:
+    if "saat" in msg or "tarih" in msg or "tarihi ve saati" in msg:
         return get_time_answer()
 
-    # Hava durumu (şehir istersen basitçe string içinde yakalayabilirsin)
     if "hava durumu" in msg or "hava nasıl" in msg or "hava kaç derece" in msg:
-        # Çok basit şehir yakalama: bilinen bir iki şehri metin içinde ara
         known_cities = ["istanbul", "ankara", "izmir", "bursa", "antalya", "adana"]
         city_found = None
         for c in known_cities:
@@ -309,28 +262,21 @@ def build_system_talimati():
     Senin adın **ALPTECH AI**.
     ALPTECH AI ekibi tarafından geliştirilen, modern ve profesyonel bir yapay zeka asistansın.
 
-    Kimliğin ve marka duruşun:
     - Her zaman kendini "ALPTECH AI" olarak tanıt.
     - Seni kimin geliştirdiği sorulduğunda: "ALPTECH AI ekibi" de.
     - OpenAI veya arka plandaki sağlayıcılardan bahsetme; markayı öne çıkar.
+    - Türkçe varsayılan dilin; kullanıcı başka dilde yazarsa o dilde devam et.
 
     Konuşma tarzın:
-    - Samimi ama profesyonelsin; gereksiz uzatma, net ve anlaşılır ol.
-    - Emojileri ölçülü kullan (çok değil, sıfır da değil).
-    - Teknik konularda adım adım, sakin ve açıklayıcı davran.
-    - Aynı kalıpları tekrar etmemeye çalış.
-
-    Uzmanlıkların:
-    - Metin üretimi (blog, açıklama, sosyal medya metni, açıklayıcı içerikler).
-    - Görsel düzenleme akışlarında rehberlik (özellikle ürün fotoğrafçılığı).
-    - Kullanıcının işini hızlandıracak kısa komutlar, özetler ve pratik çözümler.
+    - Samimi ama profesyonel, net ve anlaşılır.
+    - Emojileri ölçülü kullan.
+    - Teknik konularda adım adım anlat.
 
     Sistem notu: Bu yanıtlar {zaman_bilgisi} tarihinde oluşturuluyor.
     """
     return system_talimati
 
 def normal_sohbet(client, chat_history):
-    """API'ye iletilen chat geçmişini hazırlar ve çağırır."""
     system_talimati = build_system_talimati()
     max_context = 40
     messages = [{"role": "system", "content": system_talimati}]
@@ -373,7 +319,6 @@ def bayt_cevir(image: Image.Image):
     return buf.getvalue()
 
 def sahne_olustur(client, urun_resmi: Image.Image, prompt_text: str):
-    """OpenAI images.edit çağrısı (hata durumunda None döner)."""
     if SABIT_API_KEY is None:
         return None
     try:
@@ -445,30 +390,18 @@ def yerel_islem(urun_resmi: Image.Image, islem_tipi: str):
     bg.paste(temiz_urun, mask=temiz_urun if temiz_urun.mode in ("RGBA", "LA") else None)
     return bg
 
-def create_demo_image() -> Image.Image:
-    """Basit bir demo görsel (beyaz fonda kırmızı elma silüeti)."""
-    img = Image.new("RGB", (800, 800), "white")
-    draw = ImageDraw.Draw(img)
-    # elma silüeti gibi kırmızı bir daire
-    draw.ellipse((150, 150, 650, 650), fill=(220, 40, 40))
-    # küçük sap
-    draw.rectangle((380, 110, 420, 180), fill=(90, 60, 20))
-    return img
-
 # ----------------------------
 # UI — Başlık ve mod düğmeleri
 # ----------------------------
 st.title("ALPTECH AI Stüdyo")
 st.write("Ürününü ekle, hayaline göre profesyonel bir şekilde düzenle.")
 
-# Theme toggle + apply CSS (Apple style)
 col_bosluk, col_tema = st.columns([10, 1])
 with col_tema:
     karanlik_mod = st.toggle("🌙 / ☀️", value=True, key="theme_toggle")
 tema = get_theme(karanlik_mod)
 apply_apple_css(tema)
 
-# Mode buttons
 col_studio, col_chat = st.columns([1, 1], gap="small")
 
 is_studio_active = st.session_state.app_mode == "📸 Stüdyo Modu (Görsel Düzenleme)"
@@ -515,26 +448,16 @@ if st.session_state.app_mode == "📸 Stüdyo Modu (Görsel Düzenleme)":
         if camera_file:
             kaynak_dosya = camera_file
 
-    demo_used = False
-    raw_image = None
-
-    if not kaynak_dosya:
-        st.info("Henüz görsel seçmedin. İstersen demo görsel ile test edebilirsin.")
-        if st.button("🍎 Örnek demo görsel ile dene"):
-            demo_used = True
-            raw_image = create_demo_image()
-
-    if kaynak_dosya or demo_used:
+    if kaynak_dosya:
         col_orijinal, col_sag_panel = st.columns([1, 1], gap="medium")
 
-        if not demo_used:
-            try:
-                raw_image = Image.open(kaynak_dosya)
-                raw_image = ImageOps.exif_transpose(raw_image).convert("RGBA")
-            except Exception as e:
-                st.error("Görsel açılamadı. Lütfen farklı bir dosya deneyin.")
-                print("image open error:", e, traceback.format_exc())
-                raw_image = None
+        try:
+            raw_image = Image.open(kaynak_dosya)
+            raw_image = ImageOps.exif_transpose(raw_image).convert("RGBA")
+        except Exception as e:
+            st.error("Görsel açılamadı. Lütfen farklı bir dosya deneyin.")
+            print("image open error:", e, traceback.format_exc())
+            raw_image = None
 
         if raw_image:
             with col_orijinal:
@@ -544,8 +467,7 @@ if st.session_state.app_mode == "📸 Stüdyo Modu (Görsel Düzenleme)":
                 )
                 with st.container():
                     st.markdown('<div class="image-container">', unsafe_allow_html=True)
-                    caption = "Demo Görsel" if demo_used else "Yüklenen Görsel"
-                    st.image(raw_image, width=300, caption=caption)
+                    st.image(raw_image, width=300, caption="Yüklenen Görsel")
                     st.markdown("</div>", unsafe_allow_html=True)
 
             with col_sag_panel:
@@ -575,7 +497,7 @@ if st.session_state.app_mode == "📸 Stüdyo Modu (Görsel Düzenleme)":
                     with tab_serbest:
                         user_input = st.text_area(
                             "Hayalinizdeki sahneyi yazın:",
-                            placeholder="Örn: Volkanik taşların üzerinde...",
+                            placeholder="Örn: Arabanın rengini mavi yap, arkayı koyu gri yap...",
                             height=100,
                         )
                         if user_input:
@@ -588,7 +510,41 @@ if st.session_state.app_mode == "📸 Stüdyo Modu (Görsel Düzenleme)":
                     buton_placeholder = st.empty()
                     if buton_placeholder.button("🚀 İşlemi Başlat", type="primary"):
                         try:
-                            if islem_tipi_local:
+                            if final_prompt and SABIT_API_KEY is not None:
+                                client = OpenAI(api_key=SABIT_API_KEY)
+                                with st.spinner(
+                                    "AI sahneni oluşturuyor (10-30sn)... 🎨"
+                                ):
+                                    url = sahne_olustur(
+                                        client, raw_image, final_prompt
+                                    )
+                                    if url:
+                                        try:
+                                            resp = requests.get(url, timeout=30)
+                                            if resp.status_code == 200:
+                                                st.session_state.sonuc_gorseli = (
+                                                    resp.content
+                                                )
+                                                st.session_state.sonuc_format = "PNG"
+                                                st.rerun()
+                                            else:
+                                                st.error(
+                                                    "AI görseli indirilemedi. Lütfen tekrar dene."
+                                                )
+                                        except Exception as e:
+                                            st.error(
+                                                "Sonuç indirilemedi. Lütfen tekrar dene."
+                                            )
+                                            print(
+                                                "resim indir hata:",
+                                                e,
+                                                traceback.format_exc(),
+                                            )
+                                    else:
+                                        st.error(
+                                            "AI görsel düzenlemesi başarısız oldu. Farklı bir açıklama deneyebilirsin."
+                                        )
+                            elif islem_tipi_local:
                                 with st.spinner("Hızlı işleniyor..."):
                                     sonuc = yerel_islem(raw_image, islem_tipi_local)
                                     buf = BytesIO()
@@ -601,53 +557,13 @@ if st.session_state.app_mode == "📸 Stüdyo Modu (Görsel Düzenleme)":
                                     st.session_state.sonuc_gorseli = buf.getvalue()
                                     st.session_state.sonuc_format = fmt
                                     st.rerun()
-                            elif final_prompt:
-                                if SABIT_API_KEY is None:
-                                    st.error(
-                                        "AI sahne düzenlemesi için OPENAI_API_KEY gerekiyor."
-                                    )
-                                else:
-                                    client = OpenAI(api_key=SABIT_API_KEY)
-                                    with st.spinner(
-                                        "Stüdyo hazırlanıyor (10-30sn)... 🎨"
-                                    ):
-                                        url = sahne_olustur(
-                                            client, raw_image, final_prompt
-                                        )
-                                        if url:
-                                            try:
-                                                resp = requests.get(url, timeout=30)
-                                                if resp.status_code == 200:
-                                                    st.session_state.sonuc_gorseli = (
-                                                        resp.content
-                                                    )
-                                                    st.session_state.sonuc_format = "PNG"
-                                                    st.rerun()
-                                                else:
-                                                    st.error(
-                                                        f"Resim indirilemedi (HTTP {resp.status_code})."
-                                                    )
-                                            except Exception as e:
-                                                st.error(
-                                                    "Sonuç indirilemedi. Lütfen tekrar deneyin."
-                                                )
-                                                print(
-                                                    "resim indir hata:",
-                                                    e,
-                                                    traceback.format_exc(),
-                                                )
-                                        else:
-                                            st.error(
-                                                "AI görsel düzenlemesi başarısız oldu."
-                                            )
                             else:
-                                st.warning("Lütfen bir tema seçin veya yazı yazın.")
+                                st.warning(
+                                    "Lütfen bir hazır tema seçin veya sahneyi yazın."
+                                )
                         except Exception as e:
                             st.error(f"Hata: {e}")
-                            print(
-                                "İşlem başlat hata:",
-                                traceback.format_exc(),
-                            )
+                            print("İşlem başlat hata:", traceback.format_exc())
                             buton_placeholder.button(
                                 "🚀 Tekrar Dene", type="primary"
                             )
@@ -715,9 +631,8 @@ elif st.session_state.app_mode == "💬 Sohbet Modu (Genel Asistan)":
         unsafe_allow_html=True,
     )
 
-    # Hızlı komutlar (a: Prompt öner, b: Metin yaz, c: Soru sor)
-    quick_prompt = None
     qc1, qc2, qc3, qc4 = st.columns([1, 1, 1, 1])
+    quick_prompt = None
     with qc1:
         if st.button("🎨 Prompt öner"):
             quick_prompt = (
@@ -740,24 +655,18 @@ elif st.session_state.app_mode == "💬 Sohbet Modu (Genel Asistan)":
         if st.button("🌤 Hava durumu sor"):
             quick_prompt = f"{WEATHER_DEFAULT_CITY} için güncel hava durumu nasıl?"
 
-    # Önce geçmişi çiz
     for msg in st.session_state.chat_history:
         with st.chat_message(msg["role"]):
             st.write(msg["content"])
 
-    # Kullanıcı girişi
     chat_input_value = st.chat_input("Mesaj yazın...")
-
-    # Öncelik: quick_prompt > manuel chat_input
     prompt = quick_prompt or chat_input_value
 
     if prompt:
-        # Kullanıcı mesajını göster + kaydet
         st.session_state.chat_history.append({"role": "user", "content": prompt})
         with st.chat_message("user"):
             st.write(prompt)
 
-        # 1) Kimlik interceptor (seni kim yaptı?)
         override = custom_identity_interceptor(prompt)
         if override is not None:
             with st.chat_message("assistant"):
@@ -766,7 +675,6 @@ elif st.session_state.app_mode == "💬 Sohbet Modu (Genel Asistan)":
                 {"role": "assistant", "content": override}
             )
         else:
-            # 2) Tarih/saat/hava durumu interceptor
             util_override = custom_utility_interceptor(prompt)
             if util_override is not None:
                 with st.chat_message("assistant"):
@@ -775,7 +683,6 @@ elif st.session_state.app_mode == "💬 Sohbet Modu (Genel Asistan)":
                     {"role": "assistant", "content": util_override}
                 )
             else:
-                # 3) Normal sohbet (OpenAI)
                 if SABIT_API_KEY is None:
                     cevap = (
                         "Sohbet özelliğini kullanmak için bir OPENAI_API_KEY tanımlaman gerekiyor. "

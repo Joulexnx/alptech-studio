@@ -7,12 +7,13 @@ import requests
 import os
 
 # ==========================================
-# 🔐 GÜVENLİ AYARLAR
+# 🔐 GÜVENLİ AYARLAR (GITHUB İÇİN HAZIR)
 # ==========================================
+# Bu kod artık şifreyi kodun içinden değil, Streamlit'in güvenli kasasından çeker.
 if "OPENAI_API_KEY" in st.secrets:
     SABIT_API_KEY = st.secrets["OPENAI_API_KEY"]
 else:
-    st.error("🚨 API Anahtarı bulunamadı! Lütfen Secrets ayarlarını kontrol edin.")
+    st.error("🚨 API Anahtarı bulunamadı! Lütfen Streamlit panelinden Secrets ayarlarını yapın.")
     st.stop()
 # ==========================================
 
@@ -85,7 +86,6 @@ def bayt_cevir(image):
     return buf.getvalue()
 
 def sahne_olustur(client, urun_resmi, prompt_text):
-    # Cam koruması aktif (alpha_matting=True)
     temiz_urun = remove(urun_resmi, alpha_matting=True, alpha_matting_foreground_threshold=240, alpha_matting_background_threshold=10)
     hazir_urun = resmi_hazirla(temiz_urun)
     maske_ham = hazir_urun.split()[3]
@@ -103,7 +103,6 @@ def sahne_olustur(client, urun_resmi, prompt_text):
     return response.data[0].url
 
 def yerel_islem(urun_resmi, islem_tipi):
-    # Cam koruması aktif
     temiz_urun = remove(urun_resmi, alpha_matting=True, alpha_matting_foreground_threshold=240, alpha_matting_background_threshold=10)
     if islem_tipi == "ACTION_TRANSPARENT": return temiz_urun
     renkler = {"ACTION_WHITE": (255, 255, 255), "ACTION_BLACK": (0, 0, 0), "ACTION_BEIGE": (245, 245, 220)}
@@ -120,7 +119,7 @@ with st.sidebar:
     else:
         st.title("ALPTECH")
     st.markdown("---")
-    st.caption("AI Stüdyo v33.1 (Clean)")
+    st.caption("AI Stüdyo v33.1 (Cloud Ready)")
 
 # --- ANA EKRAN ---
 st.title("📸 ALPTECH AI Stüdyo")
@@ -147,6 +146,7 @@ if kaynak_dosya:
     raw_image = Image.open(kaynak_dosya).convert("RGBA")
     raw_image = ImageOps.exif_transpose(raw_image)
     
+    # SOL: ORİJİNAL
     with col_orijinal:
         st.markdown('<div class="container-header">📦 Orijinal Fotoğraf</div>', unsafe_allow_html=True)
         with st.container():
@@ -154,6 +154,7 @@ if kaynak_dosya:
             st.image(raw_image, width=300)
             st.markdown('</div>', unsafe_allow_html=True)
 
+    # SAĞ: PANEL
     with col_sag_panel:
         if st.session_state.sonuc_gorseli is None:
             st.markdown('<div class="container-header">✨ Düzenleme Modu</div>', unsafe_allow_html=True)
@@ -166,7 +167,7 @@ if kaynak_dosya:
                 secilen_tema = st.selectbox("Ortam Seçiniz:", list(TEMA_LISTESI.keys()))
                 if secilen_tema:
                     kod = TEMA_LISTESI[secilen_tema]
-                    if kod.startswith("ACTION_"): islem_tipi_local = kod
+                    if kod and kod.startswith("ACTION_"): islem_tipi_local = kod
                     else: final_prompt = kod
 
             with tab_serbest:

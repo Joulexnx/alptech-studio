@@ -5,6 +5,8 @@ from io import BytesIO
 from openai import OpenAI
 import requests
 import os
+from datetime import datetime
+import base64
 
 # ==========================================
 # 🔐 GÜVENLİ AYARLAR
@@ -61,6 +63,14 @@ st.markdown(f"""
     .app-title {{ color: {tema['accent']} !important; font-size: 2.5rem; font-weight: bold; }}
     .app-subtitle {{ color: {tema['subtext']} !important; font-size: 1.1rem; }}
 
+    /* --- CHAT MESAJ ORTALAMA (YENİ) --- */
+    /* st.chat_message içindeki metin alanlarını hedef alarak ortalama */
+    [data-testid="stChatMessage"] [data-testid="stMarkdownContainer"] p, 
+    [data-testid="stChatMessage"] [data-testid="stMarkdownContainer"] div {{
+        text-align: center;
+        width: 100%;
+    }}
+
     /* --- FOOTER --- */
     .custom-footer {{ 
         position: fixed; left: 0; bottom: 0; width: 100%; 
@@ -74,6 +84,8 @@ st.markdown(f"""
 # --- OTURUM YÖNETİMİ ---
 if 'sonuc_gorseli' not in st.session_state: st.session_state.sonuc_gorseli = None
 if 'sonuc_format' not in st.session_state: st.session_state.sonuc_format = "PNG"
+if 'chat_history' not in st.session_state: st.session_state.chat_history = [{"role": "assistant", "content": "Merhaba! Hangi modu kullanmak istersiniz?"}]
+if 'app_mode' not in st.session_state: st.session_state.app_mode = "📸 Stüdyo Modu (Görsel Düzenleme)"
 
 # --- İŞLEM HARİTASI ---
 TEMA_LISTESI = {
@@ -87,6 +99,25 @@ TEMA_LISTESI = {
 }
 
 # --- FONKSİYONLAR ---
+def turkce_zaman_getir():
+    simdi = datetime.now()
+    gunler = {0: "Pazartesi", 1: "Salı", 2: "Çarşamba", 3: "Perşembe", 4: "Cuma", 5: "Cumartesi", 6: "Pazar"}
+    aylar = {1: "Ocak", 2: "Şubat", 3: "Mart", 4: "Nisan", 5: "Mayıs", 6: "Haziran", 7: "Temmuz", 8: "Ağustos", 9: "Eylül", 10: "Ekim", 11: "Kasım", 12: "Aralık"}
+    return f"{simdi.day} {aylar[simdi.month]} {simdi.year}, {gunler[simdi.weekday()]}, Saat {simdi.strftime('%H:%M')}"
+
+def normal_sohbet(client, user_input):
+    zaman_bilgisi = turkce_zaman_getir()
+    system_talimati = f"Sen ALPTECH AI adında yardımsever, zeki ve Türkçe konuşan bir asistansın. Şu anki sistem zamanı: {zaman_bilgisi}. Kullanıcıyla samimi ve Türkçe konuş."
+    try:
+        response = client.chat.completions.create(
+            model="gpt-3.5-turbo",
+            messages=[{"role": "system", "content": system_talimati}, {"role": "user", "content": user_input}]
+        )
+        return response.choices[0].message.content
+    except Exception as e:
+        return "Bağlantı hatası oluştu."
+
+# GÖRSEL İŞLEM FONKSİYONLARI (Önceki koddan)
 def resmi_hazirla(image):
     kare_resim = Image.new("RGBA", (1024, 1024), (0, 0, 0, 0))
     image.thumbnail((850, 850), Image.Resampling.LANCZOS) 
@@ -134,111 +165,156 @@ def yerel_islem(urun_resmi, islem_tipi):
     bg.paste(temiz_urun, mask=temiz_urun)
     return bg
 
-# --- KODUN BAŞLANGICI ---
 
-# --- ANA BAŞLIK ---
+# --- ANA KOD GÖVDESİ ---
 st.title("ALPTECH AI Stüdyo")
 st.write("Ürününü ekle, hayaline göre profesyonel bir şekilde düzenle.")
 
-# --- GİRİŞ SEKMELERİ ---
-tab_yukle, tab_kamera = st.tabs(["📁 Dosya Yükle", "📷 Kamera"])
-kaynak_dosya = None
-with tab_yukle:
-    uploaded_file = st.file_uploader("Ürün fotoğrafı", type=["png", "jpg", "jpeg"], label_visibility="collapsed")
-    if uploaded_file: kaynak_dosya = uploaded_file
-with tab_kamera:
-    camera_file = st.camera_input("Ürünü Çek")
-    if camera_file: kaynak_dosya = camera_file
+# --- MOD SEÇİMİ (Butonlu Yöntem) ---
+col_studio, col_chat = st.columns([1, 1], gap="small")
 
-# --- İŞLEM ALANI ---
-if kaynak_dosya:
-    st.divider()
-    col_orijinal, col_sag_panel = st.columns([1, 1], gap="medium")
-    
-    raw_image = Image.open(kaynak_dosya).convert("RGBA")
-    raw_image = ImageOps.exif_transpose(raw_image)
-    
-    # SOL: ORİJİNAL
-    with col_orijinal:
-        st.markdown('<div class="container-header">📦 Orijinal Fotoğraf</div>', unsafe_allow_html=True)
-        with st.container():
-            st.markdown('<div class="image-container">', unsafe_allow_html=True)
-            st.image(raw_image, width=300)
-            st.markdown('</div>', unsafe_allow_html=True)
+is_studio_active = st.session_state.app_mode == "📸 Stüdyo Modu (Görsel Düzenleme)"
+is_chat_active = st.session_state.app_mode == "💬 Sohbet Modu (Genel Asistan)"
 
-    # SAĞ: PANEL
-    with col_sag_panel:
-        if st.session_state.sonuc_gorseli is None:
-            st.markdown('<div class="container-header">✨ Düzenleme Modu</div>', unsafe_allow_html=True)
-            
-            tab_hazir, tab_serbest = st.tabs(["🎨 Hazır Temalar", "✏️ Serbest Yazım"])
-            final_prompt = None
-            islem_tipi_local = None 
-            
-            with tab_hazir:
-                secilen_tema_input = st.selectbox("Ortam Seçiniz:", list(TEMA_LISTESI.keys()))
-                if secilen_tema_input:
-                    kod = TEMA_LISTESI[secilen_tema_input]
-                    if kod.startswith("ACTION_"): islem_tipi_local = kod
-                    else: final_prompt = kod
+with col_studio:
+    if st.button(
+        "📸 Stüdyo Modu (Görsel Düzenleme)", 
+        key="btn_studio", 
+        use_container_width=True, 
+        type="primary" if is_studio_active else "secondary"
+    ):
+        st.session_state.app_mode = "📸 Stüdyo Modu (Görsel Düzenleme)"
+        st.session_state.sonuc_gorseli = None # Mod değişince eski sonucu temizle
+        st.rerun()
 
-            with tab_serbest:
-                user_input = st.text_area("Hayalinizdeki sahneyi yazın:", placeholder="Örn: Volkanik taşların üzerinde...", height=100)
-                if user_input:
-                    final_prompt = f"Professional product photography shot of the object. {user_input}. High quality, realistic lighting, 8k."
-            
-            st.write("")
-            buton_placeholder = st.empty()
-            if buton_placeholder.button("🚀 İşlemi Başlat", type="primary"):
-                try:
-                    if islem_tipi_local:
-                        with st.spinner("Hızlı işleniyor..."):
-                            sonuc = yerel_islem(raw_image, islem_tipi_local)
-                            buf = BytesIO()
-                            fmt = "PNG" if islem_tipi_local == "ACTION_TRANSPARENT" else "JPEG"
-                            sonuc.save(buf, format=fmt)
-                            st.session_state.sonuc_gorseli = buf.getvalue()
-                            st.session_state.sonuc_format = fmt
-                            st.rerun()
-                    elif final_prompt:
-                        client = OpenAI(api_key=SABIT_API_KEY)
-                        with st.spinner("Stüdyo hazırlanıyor (10-15sn)... 🎨"):
-                            url = sahne_olustur(client, raw_image, final_prompt)
-                            resp = requests.get(url)
-                            st.session_state.sonuc_gorseli = resp.content
-                            st.session_state.sonuc_format = "PNG"
-                            st.rerun()
-                    else:
-                        st.warning("Lütfen bir tema seçin veya yazı yazın.")
-                except Exception as e:
-                    st.error(f"Hata: {e}")
-                    buton_placeholder.button("🚀 Tekrar Dene", type="primary")
+with col_chat:
+    if st.button(
+        "💬 Sohbet Modu (Genel Asistan)", 
+        key="btn_chat", 
+        use_container_width=True, 
+        type="primary" if is_chat_active else "secondary"
+    ):
+        st.session_state.app_mode = "💬 Sohbet Modu (Genel Asistan)"
+        st.session_state.sonuc_gorseli = None # Mod değişince eski sonucu temizle
+        st.rerun()
 
-        else:
-            st.markdown('<div class="container-header">✨ Sonuç</div>', unsafe_allow_html=True)
+st.divider()
+
+if st.session_state.app_mode == "📸 Stüdyo Modu (Görsel Düzenleme)":
+    # --- STÜDYO MODU ---
+    tab_yukle, tab_kamera = st.tabs(["📁 Dosya Yükle", "📷 Kamera"])
+    kaynak_dosya = None
+    with tab_yukle:
+        uploaded_file = st.file_uploader("Ürün fotoğrafı", type=["png", "jpg", "jpeg"], label_visibility="collapsed")
+        if uploaded_file: kaynak_dosya = uploaded_file
+    with tab_kamera:
+        camera_file = st.camera_input("Ürünü Çek")
+        if camera_file: kaynak_dosya = camera_file
+
+    if kaynak_dosya:
+        col_orijinal, col_sag_panel = st.columns([1, 1], gap="medium")
+        
+        raw_image = Image.open(kaynak_dosya).convert("RGBA")
+        raw_image = ImageOps.exif_transpose(raw_image)
+        
+        with col_orijinal:
+            st.markdown('<div class="container-header">📦 Orijinal Fotoğraf</div>', unsafe_allow_html=True)
             with st.container():
                 st.markdown('<div class="image-container">', unsafe_allow_html=True)
-                st.image(st.session_state.sonuc_gorseli, width=350)
+                st.image(raw_image, width=300)
                 st.markdown('</div>', unsafe_allow_html=True)
-            
-            c1, c2 = st.columns(2)
-            with c1:
-                with st.expander("👁️ Büyüt"):
-                    st.image(st.session_state.sonuc_gorseli, use_container_width=True)
-            with c2:
-                st.download_button(
-                    label=f"📥 İndir ({st.session_state.sonuc_format})",
-                    data=st.session_state.sonuc_gorseli,
-                    file_name=f"alptech_pro.{st.session_state.sonuc_format.lower()}",
-                    mime=f"image/{st.session_state.sonuc_format.lower()}",
-                    type="primary",
-                    use_container_width=True
-                )
-            
-            st.write("")
-            if st.button("🔄 Yeni İşlem Yap"):
-                st.session_state.sonuc_gorseli = None
-                st.rerun()
+
+        with col_sag_panel:
+            if st.session_state.sonuc_gorseli is None:
+                st.markdown('<div class="container-header">✨ Düzenleme Modu</div>', unsafe_allow_html=True)
+                
+                tab_hazir, tab_serbest = st.tabs(["🎨 Hazır Temalar", "✏️ Serbest Yazım"])
+                final_prompt = None
+                islem_tipi_local = None 
+                
+                with tab_hazir:
+                    secilen_tema_input = st.selectbox("Ortam Seçiniz:", list(TEMA_LISTESI.keys()))
+                    if secilen_tema_input:
+                        kod = TEMA_LISTESI[secilen_tema_input]
+                        if kod.startswith("ACTION_"): islem_tipi_local = kod
+                        else: final_prompt = kod
+
+                with tab_serbest:
+                    user_input = st.text_area("Hayalinizdeki sahneyi yazın:", placeholder="Örn: Volkanik taşların üzerinde...", height=100)
+                    if user_input:
+                        final_prompt = f"Professional product photography shot of the object. {user_input}. High quality, realistic lighting, 8k."
+                
+                st.write("")
+                buton_placeholder = st.empty()
+                if buton_placeholder.button("🚀 İşlemi Başlat", type="primary"):
+                    try:
+                        if islem_tipi_local:
+                            with st.spinner("Hızlı işleniyor..."):
+                                sonuc = yerel_islem(raw_image, islem_tipi_local)
+                                buf = BytesIO()
+                                fmt = "PNG" if islem_tipi_local == "ACTION_TRANSPARENT" else "JPEG"
+                                sonuc.save(buf, format=fmt)
+                                st.session_state.sonuc_gorseli = buf.getvalue()
+                                st.session_state.sonuc_format = fmt
+                                st.rerun()
+                        elif final_prompt:
+                            client = OpenAI(api_key=SABIT_API_KEY)
+                            with st.spinner("Stüdyo hazırlanıyor (10-15sn)... 🎨"):
+                                url = sahne_olustur(client, raw_image, final_prompt)
+                                resp = requests.get(url)
+                                st.session_state.sonuc_gorseli = resp.content
+                                st.session_state.sonuc_format = "PNG"
+                                st.rerun()
+                        else:
+                            st.warning("Lütfen bir tema seçin veya yazı yazın.")
+                    except Exception as e:
+                        st.error(f"Hata: {e}")
+                        buton_placeholder.button("🚀 Tekrar Dene", type="primary")
+
+            else:
+                st.markdown('<div class="container-header">✨ Sonuç</div>', unsafe_allow_html=True)
+                with st.container():
+                    st.markdown('<div class="image-container">', unsafe_allow_html=True)
+                    st.image(st.session_state.sonuc_gorseli, width=350)
+                    st.markdown('</div>', unsafe_allow_html=True)
+                
+                c1, c2 = st.columns(2)
+                with c1:
+                    with st.expander("👁️ Büyüt"):
+                        st.image(st.session_state.sonuc_gorseli, use_container_width=True)
+                with c2:
+                    st.download_button(
+                        label=f"📥 İndir ({st.session_state.sonuc_format})",
+                        data=st.session_state.sonuc_gorseli,
+                        file_name=f"alptech_pro.{st.session_state.sonuc_format.lower()}",
+                        mime=f"image/{st.session_state.sonuc_format.lower()}",
+                        type="primary",
+                        use_container_width=True
+                    )
+                
+                st.write("")
+                if st.button("🔄 Yeni İşlem Yap"):
+                    st.session_state.sonuc_gorseli = None
+                    st.rerun()
+
+elif st.session_state.app_mode == "💬 Sohbet Modu (Genel Asistan)":
+    # --- CHAT MODU ---
+    # Ortalanmış mesajlar CSS ile sağlanmıştır.
+    for msg in st.session_state.chat_history:
+        with st.chat_message(msg["role"]):
+            st.write(msg["content"])
+
+    if prompt := st.chat_input("Bir soru sorun (Örn: Bugün günlerden ne?)"):
+        st.session_state.chat_history.append({"role": "user", "content": prompt})
+        with st.chat_message("user"):
+            st.write(prompt)
+
+        with st.chat_message("assistant"):
+            with st.spinner("ALPTECH düşünüyor..."):
+                client = OpenAI(api_key=SABIT_API_KEY)
+                cevap = normal_sohbet(client, prompt)
+                st.write(cevap)
+                st.session_state.chat_history.append({"role": "assistant", "content": cevap})
 
 # Footer
 st.markdown("<div class='custom-footer'>ALPTECH AI Stüdyo © 2025 | Developed by Alper</div>", unsafe_allow_html=True)

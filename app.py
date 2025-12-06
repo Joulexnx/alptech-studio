@@ -25,8 +25,7 @@ from rembg import remove
 # OpenWeather ve OpenAI için kendi hesabından API key üretmen gerekiyor.
 # Sonra .streamlit/secrets.toml içine:
 #   OPENAI_API_KEY = "xxxx"
-#   WEATHER_API_KEY = "https://api.openweathermap.org/data/3.0/onecall?lat=39.92&lon=32.85&appid=API_KEY&units=metric&lang=tr
-"
+#   WEATHER_API_KEY = "yyyy"
 #   WEATHER_DEFAULT_CITY = "Istanbul"  (opsiyonel)
 # eklemelisin.
 
@@ -866,4 +865,3 @@ st.markdown(
     "<div class='custom-footer'>ALPTECH AI Stüdyo © 2025 | Developed by Alper</div>",
     unsafe_allow_html=True,
 )
-

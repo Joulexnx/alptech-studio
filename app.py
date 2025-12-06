@@ -4,7 +4,6 @@ from PIL import Image, ImageOps, ImageFilter
 from io import BytesIO
 from openai import OpenAI
 import requests
-import base64
 import os
 
 # ==========================================
@@ -21,37 +20,39 @@ else:
 icon_path = "ALPTECHAI.png" if os.path.exists("ALPTECHAI.png") else "📸"
 st.set_page_config(page_title="ALPTECH AI Stüdyo", page_icon=icon_path, layout="wide", initial_sidebar_state="collapsed")
 
-# --- TEMA MANTIĞI (GELİŞMİŞ) ---
-# Sağ üst köşe için toggle
+# --- LOGO YERLEŞİMİ (SAĞ ÜST) ---
+# Streamlit'in native logo özelliği. Sağ üst köşeye otomatik yerleşir ve boyutlanır.
+if os.path.exists("ALPTECHAI.png"):
+    st.logo("ALPTECHAI.png")
+
+# --- TEMA MANTIĞI ---
+# Sağ üst köşe için toggle (Logonun yanına gelir)
 col_bosluk, col_tema = st.columns([10, 1]) 
 with col_tema:
     karanlik_mod = st.toggle("🌙 / ☀️", value=True)
 
 # --- RENK PALETLERİ ---
 if karanlik_mod:
-    # === KARANLIK MOD (Siber Estetik) ===
+    # === KARANLIK MOD ===
     tema = {
-        "bg": "#0e1117",                # Ana arka plan
-        "text": "#ffffff",              # Ana metin rengi
-        "subtext": "#b0b0b0",           # Alt metin rengi
-        "card_bg": "#161616",           # Kart/Kutu arka planı
-        "border": "#333333",            # Kenarlık rengi
-        "accent": "#00BFFF",            # Vurgu rengi (Neon Mavi)
-        "button_hover": "#009ACD",      # Buton üzerine gelince
-        "logo_filter": "none"           # Logo filtresi (Beyaz kalır)
+        "bg": "#0e1117",
+        "text": "#ffffff",
+        "subtext": "#b0b0b0",
+        "card_bg": "#161616",
+        "border": "#333333",
+        "accent": "#00BFFF",
+        "button_hover": "#009ACD"
     }
 else:
-    # === AYDINLIK MOD (Kurumsal & Ferah) ===
+    # === AYDINLIK MOD ===
     tema = {
-        "bg": "#f0f2f6",                # Yumuşak gri arka plan
-        "text": "#262730",              # Koyu gri/siyah metin
-        "subtext": "#555555",           # Alt metin
-        "card_bg": "#ffffff",           # Beyaz kartlar (öne çıksın diye)
-        "border": "#dce1e6",            # Açık gri kenarlık
-        "accent": "#0078D4",            # Vurgu rengi (Kurumsal Mavi - Neon değil)
-        "button_hover": "#0062A3",      # Buton hover
-        # Logoyu siyaha çevir (beyaz zemin üstünde görünsün diye)
-        "logo_filter": "invert(1) brightness(0.2)" 
+        "bg": "#f0f2f6",
+        "text": "#262730",
+        "subtext": "#555555",
+        "card_bg": "#ffffff",
+        "border": "#dce1e6",
+        "accent": "#0078D4",
+        "button_hover": "#0062A3"
     }
 
 # --- TASARIM (DİNAMİK CSS) ---
@@ -60,7 +61,7 @@ st.markdown(f"""
     /* --- GENEL SAYFA --- */
     .main {{ background-color: {tema['bg']}; transition: background-color 0.3s ease; }}
     h1, h2, h3, h4, p, label, span, div {{ font-family: 'Helvetica', sans-serif; color: {tema['text']} !important; }}
-    .stMarkdown p {{ color: {tema['text']} !important; }} /* Markdown içindeki yazılar */
+    .stMarkdown p {{ color: {tema['text']} !important; }}
     
     /* --- GİZLEME --- */
     #MainMenu, footer, header, [data-testid="stToolbar"] {{visibility: hidden !important;}}
@@ -69,7 +70,7 @@ st.markdown(f"""
     /* --- BUTONLAR --- */
     .stButton>button {{ 
         width: 100%; border-radius: 8px; font-weight: bold; height: 50px; border: none;
-        background-color: {tema['accent']} !important; /* Vurgu rengini kullan */
+        background-color: {tema['accent']} !important;
         color: white !important; 
         transition: all 0.3s ease;
     }}
@@ -86,7 +87,7 @@ st.markdown(f"""
 
     /* --- DOSYA YÜKLEYİCİ --- */
     [data-testid="stFileUploader"] {{ 
-        border: 2px dashed {tema['accent']}; /* Kenarlık vurgu renginde */
+        border: 2px dashed {tema['accent']};
         border-radius: 12px; padding: 30px; text-align: center; 
         background-color: {tema['card_bg']};
     }}
@@ -99,7 +100,6 @@ st.markdown(f"""
         font-size: 16px; font-weight: bold; color: {tema['subtext']}; background-color: transparent; 
         border: 1px solid {tema['border']}; border-radius: 20px; padding: 8px 20px; transition: all 0.3s;
     }}
-    /* Seçili sekme vurgu rengini alır */
     .stTabs [aria-selected="true"] {{ 
         color: white !important; background-color: {tema['accent']} !important; border-color: {tema['accent']} !important;
     }}
@@ -112,16 +112,6 @@ st.markdown(f"""
     }}
     .container-header {{ font-weight: bold; margin-bottom: 10px; color: {tema['accent']} !important; }}
     
-    /* --- BAŞLIK VE LOGO ALANI --- */
-    .logo-header {{ text-align: center; padding: 20px 0; margin-bottom: 20px; }}
-    .logo-img {{
-        max-width: 200px; margin-bottom: 10px;
-        filter: {tema['logo_filter']}; /* Logo rengini temaya göre değiştir */
-        transition: filter 0.3s ease;
-    }}
-    .app-title {{ color: {tema['accent']} !important; font-size: 2.5rem; font-weight: bold; margin: 0; }}
-    .app-subtitle {{ color: {tema['subtext']} !important; font-size: 1.1rem; font-weight: 300; margin-top: 5px; }}
-
     /* --- FOOTER --- */
     .custom-footer {{ 
         position: fixed; left: 0; bottom: 0; width: 100%; 
@@ -198,21 +188,10 @@ def yerel_islem(urun_resmi, islem_tipi):
     bg.paste(temiz_urun, mask=temiz_urun)
     return bg
 
-# --- ÖZEL BAŞLIK ALANI (Dinamik Logo) ---
-logo_html = ""
-if os.path.exists("ALPTECHAI.png"):
-    with open("ALPTECHAI.png", "rb") as f:
-        data = base64.b64encode(f.read()).decode("utf-8")
-        # Logoya CSS sınıfını ekledik, böylece renk değiştirebilecek
-        logo_html = f'<img src="data:image/png;base64,{data}" class="logo-img">'
-
-st.markdown(f"""
-    <div class="logo-header">
-        {logo_html}
-        <h1 class="app-title">ALPTECH AI Stüdyo</h1>
-        <p class="app-subtitle">Ürününü ekle, hayaline göre profesyonel bir şekilde düzenle.</p>
-    </div>
-    """, unsafe_allow_html=True)
+# --- ANA BAŞLIK ---
+# Artık özel HTML yok, standart Streamlit başlığı var.
+st.title("ALPTECH AI Stüdyo")
+st.write("Ürününü ekle, hayaline göre profesyonel bir şekilde düzenle.")
 
 # --- GİRİŞ SEKMELERİ ---
 tab_yukle, tab_kamera = st.tabs(["📁 Dosya Yükle", "📷 Kamera"])

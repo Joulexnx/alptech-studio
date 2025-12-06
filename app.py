@@ -18,7 +18,7 @@ else:
 # ==========================================
 
 # --- SAYFA AYARLARI ---
-icon_path = "ALPTECHAI.png" if os.path.exists("ALPTECHAI.png") else "📸"
+icon_path = "ALPTECHAI.png" if os.path.exists("ALPTECHAI.png") else "🤖"
 st.set_page_config(page_title="ALPTECH AI Stüdyo", page_icon=icon_path, layout="wide", initial_sidebar_state="collapsed")
 
 # --- TEMA MANTIĞI ---
@@ -28,13 +28,11 @@ with col_tema:
 
 # --- RENK PALETLERİ ---
 if karanlik_mod:
-    # === KARANLIK MOD ===
     tema = {
         "bg": "#0e1117", "text": "#ffffff", "subtext": "#b0b0b0", "card_bg": "#161616", "border": "#333333",
         "accent": "#00BFFF", "button_hover": "#009ACD", "logo_filter": "none", "input_bg": "#262730"
     }
 else:
-    # === AYDINLIK MOD ===
     tema = {
         "bg": "#f0f2f6", "text": "#262730", "subtext": "#555555", "card_bg": "#ffffff", "border": "#cccccc",
         "accent": "#0078D4", "button_hover": "#0062A3", "logo_filter": "invert(1) brightness(0.2)", "input_bg": "#ffffff"
@@ -43,46 +41,33 @@ else:
 # --- TASARIM (DİNAMİK CSS) ---
 st.markdown(f"""
     <style>
-    /* --- GENEL SAYFA VE BOŞLUK FİKSİ --- */
+    /* --- GENEL SAYFA VE GİZLEME --- */
     .stApp {{ background-color: {tema['bg']}; }}
-    
-    /* ÜST BOŞLUĞU AZALTMA FİKSİ */
-    .block-container {{ 
-        padding-top: 1.5rem; 
-        padding-bottom: 5rem;
-        padding-left: 1rem;
-        padding-right: 1rem;
-    }}
-
-    h1, h2, h3, h4, p, li, span, div, label, .stMarkdown, .stText {{ color: {tema['text']} !important; }}
-    
-    /* --- GİZLEME --- */
+    .block-container {{ padding-top: 1.5rem; padding-bottom: 5rem; padding-left: 1rem; padding-right: 1rem; }}
     #MainMenu, footer, header, [data-testid="stToolbar"], [data-testid="stSidebar"] {{visibility: hidden !important;}}
 
-    /* --- BUTONLAR --- */
-    .stButton>button {{ 
-        width: 100%; border-radius: 8px; font-weight: bold; height: 50px; border: none;
-        background-color: {tema['accent']} !important; color: white !important;
-    }}
-
-    /* --- INPUTLAR VE KUTULAR --- */
-    .stTextArea textarea {{ 
-        border: 1px solid {tema['border']} !important; 
-        background-color: {tema['input_bg']} !important; color: {tema['text']} !important; 
-    }}
-
     /* --- GÖRSEL METİN FİKSİ (KRİTİK) --- */
-    /* Dosya yükleyici içindeki "Drag and drop", "Limit 200MB" gibi küçük metinleri zorla beyaz/siyah yapar */
-    [data-testid="stFileUploader"] small, 
-    [data-testid="stFileUploader"] p,
-    [data-testid="stFileUploader"] label {{
-        color: {tema['text']} !important; 
-    }}
+    h1, h2, h3, h4, p, li, span, div, label, .stMarkdown, .stText {{ color: {tema['text']} !important; }}
     
-    /* --- SEKMELER (TABS) --- */
-    .stTabs [aria-selected="true"] {{ 
-        color: white !important; background-color: {tema['accent']} !important; border-color: {tema['accent']} !important;
+    /* --- SELECTBOX TEXT FİKSİ --- */
+    /* Dış kutu ve içindeki yazıyı zorla temaya uydurur */
+    div[data-baseweb="select"] > div {{
+        background-color: {tema['input_bg']} !important;
+        color: {tema['text']} !important;
+        border-color: {tema['border']} !important;
     }}
+    /* Dropdown listesi ve içindeki yazı */
+    div[data-baseweb="popover"] {{
+        background-color: {tema['input_bg']} !important;
+        color: {tema['text']} !important;
+    }}
+    div[data-baseweb="popover"] div[data-baseweb="menu"] > div {{
+        color: {tema['text']} !important;
+    }}
+
+    /* --- BAŞLIK STİLİ --- */
+    .app-title {{ color: {tema['accent']} !important; font-size: 2.5rem; font-weight: bold; }}
+    .app-subtitle {{ color: {tema['subtext']} !important; font-size: 1.1rem; }}
 
     /* --- GÖRSEL KONTEYNER --- */
     .image-container {{
@@ -90,23 +75,9 @@ st.markdown(f"""
         background-color: {tema['card_bg']} !important; 
         margin-bottom: 15px; display: flex; justify-content: center; align-items: center;
     }}
-    .container-header {{ font-weight: bold; margin-bottom: 10px; color: {tema['accent']} !important; }}
-    
-    /* --- BAŞLIK VE LOGO ALANI --- */
-    .logo-img {{
-        filter: {tema['logo_filter']};
-        transition: filter 0.3s ease;
-    }}
-    .app-title {{ color: {tema['accent']} !important; font-size: 2.5rem; }}
-    .app-subtitle {{ color: {tema['subtext']} !important; font-size: 1.1rem; }}
 
-    /* --- SABİT FOOTER --- */
-    .custom-footer {{ 
-        position: fixed; left: 0; bottom: 0; width: 100%; 
-        background-color: {tema['bg']}; color: {tema['subtext']}; 
-        text-align: center; padding: 10px; font-size: 12px; 
-        border-top: 1px solid {tema['border']}; z-index: 999;
-    }}
+    /* --- LOGO STİLİ --- */
+    .logo-img {{ filter: {tema['logo_filter']}; transition: filter 0.3s ease; max-width: 150px; }}
     </style>
     """, unsafe_allow_html=True)
 
@@ -173,30 +144,34 @@ def yerel_islem(urun_resmi, islem_tipi):
     bg.paste(temiz_urun, mask=temiz_urun)
     return bg
 
-# --- ÖZEL BAŞLIK ALANI (Dinamik Logo) ---
-logo_html = ""
-if os.path.exists("ALPTECHAI.png"):
-    import base64
-    with open("ALPTECHAI.png", "rb") as f:
-        data = base64.b64encode(f.read()).decode("utf-8")
-        logo_html = f'<img src="data:image/png;base64,{data}" class="logo-img">'
+# --- KODUN BAŞLANGICI ---
 
-st.markdown(f"""
-    <div class="logo-header">
-        {logo_html}
-        <h1 class="app-title">ALPTECH AI Stüdyo</h1>
-        <p class="app-subtitle">Ürününü ekle, hayaline göre profesyonel bir şekilde düzenle.</p>
-    </div>
-    """, unsafe_allow_html=True)
+# --- LOGO VE BAŞLIK YERLEŞİMİ (ANA EKRAN) ---
+col_logo, col_baslik = st.columns([1, 4])
+
+# 1. LOGO ALANI (Yeşil Kutu Alanı)
+with col_logo:
+    st.markdown('<div style="text-align: center; margin-top: 15px;"></div>', unsafe_allow_html=True)
+    if os.path.exists("ALPTECHAI.png"):
+        # Logoyu küçültülmüş boyutta göster
+        st.image("ALPTECHAI.png", width=60)
+    else:
+        st.title("ALPTECH") # Logo yoksa yazı
+        
+# 2. BAŞLIKLAR
+with col_baslik:
+    st.markdown(f'<div class="logo-header">', unsafe_allow_html=True)
+    st.markdown(f'<h1 class="app-title">ALPTECH AI Stüdyo</h1>', unsafe_allow_html=True)
+    st.markdown(f'<p class="app-subtitle">Ürününü ekle, hayaline göre profesyonel bir şekilde düzenle.</p>', unsafe_allow_html=True)
+    st.markdown('</div>', unsafe_allow_html=True)
+st.write("") 
 
 # --- GİRİŞ SEKMELERİ ---
 tab_yukle, tab_kamera = st.tabs(["📁 Dosya Yükle", "📷 Kamera"])
 kaynak_dosya = None
-
 with tab_yukle:
     uploaded_file = st.file_uploader("Ürün fotoğrafı", type=["png", "jpg", "jpeg"], label_visibility="collapsed")
     if uploaded_file: kaynak_dosya = uploaded_file
-
 with tab_kamera:
     camera_file = st.camera_input("Ürünü Çek")
     if camera_file: kaynak_dosya = camera_file

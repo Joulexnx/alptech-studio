@@ -46,38 +46,42 @@ st.markdown(f"""
     .block-container {{ padding-top: 1.5rem; padding-bottom: 5rem; padding-left: 1rem; padding-right: 1rem; }}
     #MainMenu, footer, header, [data-testid="stToolbar"], [data-testid="stSidebar"] {{visibility: hidden !important;}}
 
-    /* --- GÖRSEL METİN FİKSİ (KRİTİK) --- */
+    /* --- YAZI RENK ZORLAMASI --- */
     h1, h2, h3, h4, p, li, span, div, label, .stMarkdown, .stText {{ color: {tema['text']} !important; }}
     
-    /* --- SELECTBOX TEXT FİKSİ --- */
-    /* Dış kutu ve içindeki yazıyı zorla temaya uydurur */
+    /* --- LOGO STİLİ --- */
+    .logo-img {{ filter: {tema['logo_filter']}; transition: filter 0.3s ease; max-width: 60px; margin-top: 5px; }}
+
+    /* --- SELECTBOX TEXT FİKSİ (KRİTİK) --- */
+    /* Selectbox'ın kendi input alanı */
     div[data-baseweb="select"] > div {{
         background-color: {tema['input_bg']} !important;
         color: {tema['text']} !important;
         border-color: {tema['border']} !important;
     }}
-    /* Dropdown listesi ve içindeki yazı */
+    /* Dropdown listesi (açılır menü) ve içindeki yazı rengi */
     div[data-baseweb="popover"] {{
-        background-color: {tema['input_bg']} !important;
-        color: {tema['text']} !important;
+        background-color: {tema['input_bg']} !important; /* Açılan menü zemini */
     }}
-    div[data-baseweb="popover"] div[data-baseweb="menu"] > div {{
-        color: {tema['text']} !important;
+    div[data-baseweb="popover"] div[role="listbox"] div[role="option"] {{
+        color: {tema['text']} !important; /* Seçenek metin rengi */
     }}
-
-    /* --- BAŞLIK STİLİ --- */
-    .app-title {{ color: {tema['accent']} !important; font-size: 2.5rem; font-weight: bold; }}
-    .app-subtitle {{ color: {tema['subtext']} !important; font-size: 1.1rem; }}
-
+    
     /* --- GÖRSEL KONTEYNER --- */
     .image-container {{
         border: 1px solid {tema['border']}; border-radius: 12px; padding: 10px;
         background-color: {tema['card_bg']} !important; 
         margin-bottom: 15px; display: flex; justify-content: center; align-items: center;
     }}
+    .container-header {{ font-weight: bold; margin-bottom: 10px; color: {tema['accent']} !important; }}
 
-    /* --- LOGO STİLİ --- */
-    .logo-img {{ filter: {tema['logo_filter']}; transition: filter 0.3s ease; max-width: 150px; }}
+    /* --- FOOTER --- */
+    .custom-footer {{ 
+        position: fixed; left: 0; bottom: 0; width: 100%; 
+        background-color: {tema['bg']}; color: {tema['subtext']}; 
+        text-align: center; padding: 10px; font-size: 12px; 
+        border-top: 1px solid {tema['border']}; z-index: 999;
+    }}
     </style>
     """, unsafe_allow_html=True)
 
@@ -146,32 +150,33 @@ def yerel_islem(urun_resmi, islem_tipi):
 
 # --- KODUN BAŞLANGICI ---
 
-# --- LOGO VE BAŞLIK YERLEŞİMİ (ANA EKRAN) ---
+# --- LOGO VE BAŞLIK YERLEŞİMİ ---
 col_logo, col_baslik = st.columns([1, 4])
 
-# 1. LOGO ALANI (Yeşil Kutu Alanı)
+# 1. LOGO ALANI
 with col_logo:
-    st.markdown('<div style="text-align: center; margin-top: 15px;"></div>', unsafe_allow_html=True)
     if os.path.exists("ALPTECHAI.png"):
-        # Logoyu küçültülmüş boyutta göster
+        # Logo yerleşimi ve boyutu ayarlandı
+        st.markdown('<div style="text-align: center; margin-top: 10px;"></div>', unsafe_allow_html=True)
         st.image("ALPTECHAI.png", width=60)
     else:
-        st.title("ALPTECH") # Logo yoksa yazı
-        
+        st.title("ALPTECH") 
+
 # 2. BAŞLIKLAR
 with col_baslik:
-    st.markdown(f'<div class="logo-header">', unsafe_allow_html=True)
+    st.markdown(f'<div style="padding-top: 10px;"></div>', unsafe_allow_html=True) # Üst boşluğu dengelemek için
     st.markdown(f'<h1 class="app-title">ALPTECH AI Stüdyo</h1>', unsafe_allow_html=True)
     st.markdown(f'<p class="app-subtitle">Ürününü ekle, hayaline göre profesyonel bir şekilde düzenle.</p>', unsafe_allow_html=True)
-    st.markdown('</div>', unsafe_allow_html=True)
 st.write("") 
 
 # --- GİRİŞ SEKMELERİ ---
 tab_yukle, tab_kamera = st.tabs(["📁 Dosya Yükle", "📷 Kamera"])
 kaynak_dosya = None
+
 with tab_yukle:
     uploaded_file = st.file_uploader("Ürün fotoğrafı", type=["png", "jpg", "jpeg"], label_visibility="collapsed")
     if uploaded_file: kaynak_dosya = uploaded_file
+
 with tab_kamera:
     camera_file = st.camera_input("Ürünü Çek")
     if camera_file: kaynak_dosya = camera_file

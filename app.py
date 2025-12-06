@@ -7,9 +7,13 @@ import requests
 import os
 
 # ==========================================
-# 🔐 PATRON AYARLARI
+# 🔐 GÜVENLİ AYARLAR
 # ==========================================
-SABIT_API_KEY = "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"
+if "OPENAI_API_KEY" in st.secrets:
+    SABIT_API_KEY = st.secrets["OPENAI_API_KEY"]
+else:
+    st.error("🚨 API Anahtarı bulunamadı! Lütfen Secrets ayarlarını kontrol edin.")
+    st.stop()
 # ==========================================
 
 # --- SAYFA AYARLARI ---
@@ -27,12 +31,10 @@ st.markdown("""
     .stTextArea textarea { border-radius: 8px; border: 1px solid #444; background-color: #262730; color: white; }
     .stFileUploader { border: 2px dashed #00BFFF; border-radius: 10px; padding: 30px; text-align: center; }
     
-    /* Sekme Tasarımı */
     .stTabs [data-baseweb="tab-list"] { justify-content: center; gap: 10px; }
     .stTabs [data-baseweb="tab"] { font-size: 16px; font-weight: bold; color: #ccc; background-color: #1e1e1e; border-radius: 5px; }
     .stTabs [aria-selected="true"] { color: white; background-color: #00BFFF; }
 
-    /* Görsel Konteyner */
     .image-container {
         border: 1px solid #333;
         border-radius: 12px;
@@ -56,13 +58,10 @@ if 'sonuc_format' not in st.session_state: st.session_state.sonuc_format = "PNG"
 
 # --- İŞLEM HARİTASI ---
 TEMA_LISTESI = {
-    # NET RENKLER (Bedava & Hızlı)
     "🧹 Arka Planı Kaldır (Şeffaf)": "ACTION_TRANSPARENT",
     "⬛ Düz Siyah Fon (Mat)": "ACTION_BLACK",
     "⬜ Düz Beyaz Fon": "ACTION_WHITE",
     "🍦 Krem / Bej Fon": "ACTION_BEIGE",
-    
-    # PRO KONSEPTLER (Yapay Zeka)
     "🏛️ Mermer Zemin (Lüks)": "Professional product photography, close-up shot of the object placed on a polished white carrara marble podium. Soft cinematic lighting, realistic shadows, depth of field, 8k resolution, luxury aesthetic.",
     "🪵 Ahşap Zemin (Doğal)": "Professional product photography, object placed on a textured rustic oak wooden table. Warm sunlight coming from the side, dappled shadows, blurred nature background, cozy atmosphere, photorealistic.",
     "🧱 Beton Zemin (Modern)": "Professional product photography, object placed on a raw grey concrete surface. Hard dramatic lighting, high contrast, sharp shadows, urban minimalist style, 8k.",
@@ -73,10 +72,6 @@ TEMA_LISTESI = {
 
 # --- FONKSİYONLAR ---
 def resmi_hazirla(image):
-    """
-    Görseli kesmeden 1024x1024 tuvalin ortasına yerleştirir.
-    850px boyutuna küçültüp ortalayarak kenarlardan taşmayı önler.
-    """
     kare_resim = Image.new("RGBA", (1024, 1024), (0, 0, 0, 0))
     image.thumbnail((850, 850), Image.Resampling.LANCZOS) 
     x = (1024 - image.width) // 2
@@ -90,12 +85,9 @@ def bayt_cevir(image):
     return buf.getvalue()
 
 def sahne_olustur(client, urun_resmi, prompt_text):
-    # BURADA GÜNCELLEME YAPILDI: alpha_matting=True (Cam ve tül koruması)
+    # Cam koruması aktif (alpha_matting=True)
     temiz_urun = remove(urun_resmi, alpha_matting=True, alpha_matting_foreground_threshold=240, alpha_matting_background_threshold=10)
-    
     hazir_urun = resmi_hazirla(temiz_urun)
-    
-    # Maske İyileştirme
     maske_ham = hazir_urun.split()[3]
     maske_yumusak = maske_ham.filter(ImageFilter.GaussianBlur(radius=3))
     final_maske = Image.new("RGBA", hazir_urun.size, (0, 0, 0, 0))
@@ -111,9 +103,8 @@ def sahne_olustur(client, urun_resmi, prompt_text):
     return response.data[0].url
 
 def yerel_islem(urun_resmi, islem_tipi):
-    # BURADA GÜNCELLEME YAPILDI: alpha_matting=True (Cam ve tül koruması)
+    # Cam koruması aktif
     temiz_urun = remove(urun_resmi, alpha_matting=True, alpha_matting_foreground_threshold=240, alpha_matting_background_threshold=10)
-    
     if islem_tipi == "ACTION_TRANSPARENT": return temiz_urun
     renkler = {"ACTION_WHITE": (255, 255, 255), "ACTION_BLACK": (0, 0, 0), "ACTION_BEIGE": (245, 245, 220)}
     bg_color = renkler.get(islem_tipi, (255, 255, 255))
@@ -129,7 +120,7 @@ with st.sidebar:
     else:
         st.title("ALPTECH")
     st.markdown("---")
-    st.caption("AI Stüdyo v33.1 (Glass Fix)")
+    st.caption("AI Stüdyo v33.1 (Clean)")
 
 # --- ANA EKRAN ---
 st.title("📸 ALPTECH AI Stüdyo")
@@ -156,7 +147,6 @@ if kaynak_dosya:
     raw_image = Image.open(kaynak_dosya).convert("RGBA")
     raw_image = ImageOps.exif_transpose(raw_image)
     
-    # SOL: ORİJİNAL
     with col_orijinal:
         st.markdown('<div class="container-header">📦 Orijinal Fotoğraf</div>', unsafe_allow_html=True)
         with st.container():
@@ -164,14 +154,11 @@ if kaynak_dosya:
             st.image(raw_image, width=300)
             st.markdown('</div>', unsafe_allow_html=True)
 
-    # SAĞ: PANEL
     with col_sag_panel:
         if st.session_state.sonuc_gorseli is None:
             st.markdown('<div class="container-header">✨ Düzenleme Modu</div>', unsafe_allow_html=True)
             
-            # --- PANEL SEKMELERİ ---
             tab_hazir, tab_serbest = st.tabs(["🎨 Hazır Temalar", "✏️ Serbest Yazım"])
-            
             final_prompt = None
             islem_tipi_local = None 
             
@@ -179,7 +166,7 @@ if kaynak_dosya:
                 secilen_tema = st.selectbox("Ortam Seçiniz:", list(TEMA_LISTESI.keys()))
                 if secilen_tema:
                     kod = TEMA_LISTESI[secilen_tema]
-                    if kod and kod.startswith("ACTION_"): islem_tipi_local = kod
+                    if kod.startswith("ACTION_"): islem_tipi_local = kod
                     else: final_prompt = kod
 
             with tab_serbest:
@@ -187,12 +174,10 @@ if kaynak_dosya:
                 if user_input:
                     final_prompt = f"Professional product photography shot of the object. {user_input}. High quality, realistic lighting, 8k."
             
-            # ORTAK BAŞLAT BUTONU
             st.write("")
             buton_placeholder = st.empty()
             if buton_placeholder.button("🚀 İşlemi Başlat", type="primary"):
                 try:
-                    # 1. Yerel İşlem
                     if islem_tipi_local:
                         with st.spinner("Hızlı işleniyor..."):
                             sonuc = yerel_islem(raw_image, islem_tipi_local)
@@ -202,8 +187,6 @@ if kaynak_dosya:
                             st.session_state.sonuc_gorseli = buf.getvalue()
                             st.session_state.sonuc_format = fmt
                             st.rerun()
-                    
-                    # 2. Yapay Zeka İşlemi
                     elif final_prompt:
                         client = OpenAI(api_key=SABIT_API_KEY)
                         with st.spinner("Stüdyo hazırlanıyor (10-15sn)... 🎨"):
@@ -214,20 +197,17 @@ if kaynak_dosya:
                             st.rerun()
                     else:
                         st.warning("Lütfen bir tema seçin veya yazı yazın.")
-                        
                 except Exception as e:
                     st.error(f"Hata: {e}")
                     buton_placeholder.button("🚀 Tekrar Dene", type="primary")
 
         else:
-            # SONUÇ EKRANI
             st.markdown('<div class="container-header">✨ Sonuç</div>', unsafe_allow_html=True)
             with st.container():
                 st.markdown('<div class="image-container">', unsafe_allow_html=True)
                 st.image(st.session_state.sonuc_gorseli, width=350)
                 st.markdown('</div>', unsafe_allow_html=True)
             
-            # Aksiyon Butonları
             c1, c2 = st.columns(2)
             with c1:
                 with st.expander("👁️ Büyüt"):

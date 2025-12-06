@@ -25,7 +25,6 @@ st.set_page_config(page_title="ALPTECH AI Stüdyo", page_icon="🤖", layout="wi
 # --- TEMA MANTIĞI ---
 col_bosluk, col_tema = st.columns([10, 1]) 
 with col_tema:
-    # Toggle (Koyu/Aydınlık Mod)
     karanlik_mod = st.toggle("🌙 / ☀️", value=True, key="theme_toggle") 
 
 if karanlik_mod:
@@ -52,7 +51,7 @@ st.markdown(f"""
     div[data-baseweb="select"] > div {{ background-color: {tema['input_bg']} !important; color: {tema['text']} !important; border-color: {tema['border']} !important; }}
     div[data-baseweb="popover"] div[role="listbox"] div[role="option"] {{ color: {tema['text']} !important; }}
     
-    /* CHAT HİZALAMASI */
+    /* CHAT ORTALAMA (SOL HİZALI) */
     [data-testid="stChatMessage"] [data-testid="stMarkdownContainer"] p, [data-testid="stChatMessage"] [data-testid="stMarkdownContainer"] div {{
         text-align: left !important;
         width: 100%;
@@ -100,19 +99,19 @@ def normal_sohbet(client, chat_history):
     """Chat geçmişini kullanarak daha insancıl ve kapsamlı cevaplar verir."""
     zaman_bilgisi = turkce_zaman_getir()
     
-    # 🌟 GÜÇLENDİRİLMİŞ SİSTEM TALİMATI
+    # 🌟 GÜNCELLENEN SİSTEM TALİMATI (Kapsamlı hale getirildi)
     system_talimati = f"""
     SENİN ROLÜN: ALPTECH AI'ın yüksek seviyeli, Türkçe konuşan, esprili ve son derece yetenekli ana asistanısın. Müşterinin tüm yaratıcı, profesyonel ve bilgiye dayalı ihtiyaçlarını karşıla.
     
     KAPSAMLI YETENEKLER:
-    1.  Yaratıcı Üretim: Şarkı, şiir, makale taslağı, profesyonel e-posta gibi uzun metinleri istenilen formatta ve yapıda (Verse, Nakarat vb.) detaylıca yaz.
-    2.  Dil Uzmanlığı: Kullanıcının sunduğu herhangi bir metni dilbilgisi, yazım hataları ve akıcılık açısından kontrol et ve düzelt.
+    1.  Yaratıcı Üretim: Şarkı, şiir, makale taslağı ve profesyonel e-posta gibi uzun metinleri istenilen formatta ve yapıda (Verse, Nakarat vb.) detaylıca yaz.
+    2.  Dil Uzmanlığı: Kullanıcının sunduğu herhangi bir metni (cümle, paragraf, mail taslağı) dilbilgisi, yazım hataları ve akıcılık açısından kontrol et ve düzelt.
     3.  Derinlemesine Bilgi: Karmaşık sorulara kısa cevaplar yerine doyurucu açıklamalar sun.
 
     KONUŞMA KURALLARI:
     1.  Samimiyet: Cana yakın, pozitif ve doğal bir sohbet akışı yakala. Emoji kullan.
     2.  Tekrarı Önleme: 'Size nasıl yardımcı olabilirim?' gibi robotik ifadeler KULLANMA.
-    3.  Selamlama: Selamlara kısa ve samimi karşılık ver (Örn: "Selam! 👋"), sohbeti kullanıcıya bırak.
+    3.  Selamlama: Selamlara kısa ve samimi karşılık ver (Örn: "Selam! 👋" veya "Merhaba! 😊"), sohbeti kullanıcıya bırak.
     4.  Zaman Bilgisi: Sistemi zaman bilgisi: {zaman_bilgisi}. Bu bilgiyi sadece kullanıcı sorduğunda kullan.
     
     Cevaplarının uzunluğunu ve detayını, isteğin kapsamına göre ayarla (Mail/Şarkı istenirse uzun, soru istenirse net ol).
@@ -133,7 +132,7 @@ def normal_sohbet(client, chat_history):
     except Exception as e:
         return "Üzgünüm, şu an bağlantımda bir sorun var veya çok fazla deneme yaptınız."
 
-# GÖRSEL İŞLEM FONKSİYONLARI (değişmedi)
+# GÖRSEL İŞLEM FONKSİYONLARI (kısaltıldı)
 def resmi_hazirla(image):
     kare_resim = Image.new("RGBA", (1024, 1024), (0, 0, 0, 0))
     image.thumbnail((850, 850), Image.Resampling.LANCZOS) 

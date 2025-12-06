@@ -4,6 +4,7 @@ from PIL import Image, ImageOps, ImageFilter
 from io import BytesIO
 from openai import OpenAI
 import requests
+import base64
 import os
 
 # ==========================================
@@ -20,156 +21,113 @@ else:
 icon_path = "ALPTECHAI.png" if os.path.exists("ALPTECHAI.png") else "📸"
 st.set_page_config(page_title="ALPTECH AI Stüdyo", page_icon=icon_path, layout="wide", initial_sidebar_state="collapsed")
 
-# --- TEMA MANTIĞI ---
-# Sayfanın en tepesine, sağa yaslı bir toggle koyuyoruz
+# --- TEMA MANTIĞI (GELİŞMİŞ) ---
+# Sağ üst köşe için toggle
 col_bosluk, col_tema = st.columns([10, 1]) 
 with col_tema:
-    # Güneş/Ay ikonu ile geçiş
     karanlik_mod = st.toggle("🌙 / ☀️", value=True)
 
-# Seçilen temaya göre renkleri belirle
+# --- RENK PALETLERİ ---
 if karanlik_mod:
-    # --- KARANLIK MOD RENKLERİ ---
+    # === KARANLIK MOD (Siber Estetik) ===
     tema = {
-        "bg": "#0e1117",
-        "text": "white",
-        "subtext": "#b0b0b0",
-        "card_bg": "#161616",
-        "border": "#333",
-        "input_bg": "#1c1c1c",
-        "input_text": "white",
-        "uploader_border": "#00BFFF"
+        "bg": "#0e1117",                # Ana arka plan
+        "text": "#ffffff",              # Ana metin rengi
+        "subtext": "#b0b0b0",           # Alt metin rengi
+        "card_bg": "#161616",           # Kart/Kutu arka planı
+        "border": "#333333",            # Kenarlık rengi
+        "accent": "#00BFFF",            # Vurgu rengi (Neon Mavi)
+        "button_hover": "#009ACD",      # Buton üzerine gelince
+        "logo_filter": "none"           # Logo filtresi (Beyaz kalır)
     }
 else:
-    # --- AYDINLIK MOD RENKLERİ ---
+    # === AYDINLIK MOD (Kurumsal & Ferah) ===
     tema = {
-        "bg": "#ffffff",
-        "text": "#000000",
-        "subtext": "#555555",
-        "card_bg": "#f8f9fa",
-        "border": "#e0e0e0",
-        "input_bg": "#ffffff",
-        "input_text": "black",
-        "uploader_border": "#007acc"
+        "bg": "#f0f2f6",                # Yumuşak gri arka plan
+        "text": "#262730",              # Koyu gri/siyah metin
+        "subtext": "#555555",           # Alt metin
+        "card_bg": "#ffffff",           # Beyaz kartlar (öne çıksın diye)
+        "border": "#dce1e6",            # Açık gri kenarlık
+        "accent": "#0078D4",            # Vurgu rengi (Kurumsal Mavi - Neon değil)
+        "button_hover": "#0062A3",      # Buton hover
+        # Logoyu siyaha çevir (beyaz zemin üstünde görünsün diye)
+        "logo_filter": "invert(1) brightness(0.2)" 
     }
 
-# --- TASARIM (CSS) ---
-# CSS'i dinamik hale getirdik (f-string ile renkleri basıyoruz)
+# --- TASARIM (DİNAMİK CSS) ---
 st.markdown(f"""
     <style>
-    /* Ana arka plan ve metin rengi */
-    .main {{ background-color: {tema['bg']}; }}
-    h1, h2, h3, h4, p, label, .stMarkdown {{ font-family: 'Helvetica', sans-serif; color: {tema['text']} !important; }}
+    /* --- GENEL SAYFA --- */
+    .main {{ background-color: {tema['bg']}; transition: background-color 0.3s ease; }}
+    h1, h2, h3, h4, p, label, span, div {{ font-family: 'Helvetica', sans-serif; color: {tema['text']} !important; }}
+    .stMarkdown p {{ color: {tema['text']} !important; }} /* Markdown içindeki yazılar */
     
-    /* Sağ üst menüleri gizle */
-    #MainMenu {{visibility: hidden;}}
-    footer {{visibility: hidden;}}
-    header {{visibility: hidden;}}
-    [data-testid="stToolbar"] {{visibility: hidden !important;}}
+    /* --- GİZLEME --- */
+    #MainMenu, footer, header, [data-testid="stToolbar"] {{visibility: hidden !important;}}
     [data-testid="stSidebar"] {{ display: none; }}
 
-    /* Butonlar */
+    /* --- BUTONLAR --- */
     .stButton>button {{ 
-        width: 100%; 
-        border-radius: 8px; 
-        font-weight: bold; 
-        height: 50px; 
-        background-color: #00BFFF; 
-        color: white; 
-        border: none;
+        width: 100%; border-radius: 8px; font-weight: bold; height: 50px; border: none;
+        background-color: {tema['accent']} !important; /* Vurgu rengini kullan */
+        color: white !important; 
+        transition: all 0.3s ease;
     }}
-    .stButton>button:hover {{ background-color: #009ACD; }}
+    .stButton>button:hover {{ background-color: {tema['button_hover']} !important; }}
+    .stButton>button:active {{ transform: scale(0.98); }}
 
-    /* Seçim Kutuları ve Inputlar */
-    .stSelectbox, .stTextInput {{ border-radius: 8px; }}
+    /* --- INPUTLAR VE KUTULAR --- */
+    .stSelectbox > div > div {{ background-color: {tema['card_bg']}; border-color: {tema['border']}; color: {tema['text']}; }}
+    .stTextInput > div > div {{ background-color: {tema['card_bg']}; border-color: {tema['border']}; color: {tema['text']}; }}
     .stTextArea textarea {{ 
-        border-radius: 8px; 
-        border: 1px solid {tema['border']}; 
-        background-color: {tema['input_bg']}; 
-        color: {tema['input_text']}; 
+        border-radius: 8px; border: 1px solid {tema['border']}; 
+        background-color: {tema['card_bg']}; color: {tema['text']}; 
     }}
-    /* Dropdown menü içi */
-    div[data-baseweb="select"] > div {{
-        background-color: {tema['input_bg']};
-        color: {tema['input_text']};
-        border-color: {tema['border']};
-    }}
-    
-    /* Dosya Yükleyici */
-    .stFileUploader {{ 
-        border: 2px dashed {tema['uploader_border']}; 
-        border-radius: 12px; 
-        padding: 30px; 
-        text-align: center; 
+
+    /* --- DOSYA YÜKLEYİCİ --- */
+    [data-testid="stFileUploader"] {{ 
+        border: 2px dashed {tema['accent']}; /* Kenarlık vurgu renginde */
+        border-radius: 12px; padding: 30px; text-align: center; 
         background-color: {tema['card_bg']};
     }}
-    .stFileUploader label {{ color: {tema['text']} !important; }}
+    [data-testid="stFileUploader"] label {{ color: {tema['text']} !important; }}
+    [data-testid="stFileUploader"] small {{ color: {tema['subtext']} !important; }}
     
-    /* Sekme Tasarımı */
+    /* --- SEKMELER (TABS) --- */
     .stTabs [data-baseweb="tab-list"] {{ justify-content: center; gap: 15px; margin-bottom: 20px; }}
     .stTabs [data-baseweb="tab"] {{ 
-        font-size: 16px; 
-        font-weight: bold; 
-        color: #888; 
-        background-color: transparent; 
-        border: 1px solid {tema['border']};
-        border-radius: 20px;
-        padding: 8px 20px;
+        font-size: 16px; font-weight: bold; color: {tema['subtext']}; background-color: transparent; 
+        border: 1px solid {tema['border']}; border-radius: 20px; padding: 8px 20px; transition: all 0.3s;
     }}
+    /* Seçili sekme vurgu rengini alır */
     .stTabs [aria-selected="true"] {{ 
-        color: white !important; 
-        background-color: #00BFFF; 
-        border-color: #00BFFF;
+        color: white !important; background-color: {tema['accent']} !important; border-color: {tema['accent']} !important;
     }}
 
-    /* Görsel Konteyner */
+    /* --- GÖRSEL KONTEYNER --- */
     .image-container {{
-        border: 1px solid {tema['border']};
-        border-radius: 12px;
-        padding: 10px;
-        background-color: {tema['card_bg']};
-        text-align: center;
-        margin-bottom: 15px;
-        display: flex;
-        justify-content: center;
-        align-items: center;
+        border: 1px solid {tema['border']}; border-radius: 12px; padding: 10px;
+        background-color: {tema['card_bg']}; text-align: center;
+        margin-bottom: 15px; display: flex; justify-content: center; align-items: center;
     }}
+    .container-header {{ font-weight: bold; margin-bottom: 10px; color: {tema['accent']} !important; }}
     
-    /* Başlık ve Logo Alanı */
-    .logo-header {{
-        text-align: center;
-        padding: 20px 0;
-        margin-bottom: 20px;
-    }}
+    /* --- BAŞLIK VE LOGO ALANI --- */
+    .logo-header {{ text-align: center; padding: 20px 0; margin-bottom: 20px; }}
     .logo-img {{
-        max-width: 200px;
-        margin-bottom: 10px;
+        max-width: 200px; margin-bottom: 10px;
+        filter: {tema['logo_filter']}; /* Logo rengini temaya göre değiştir */
+        transition: filter 0.3s ease;
     }}
-    .app-title {{
-        color: #00BFFF !important;
-        font-size: 2.5rem;
-        font-weight: bold;
-        margin: 0;
-    }}
-    .app-subtitle {{
-        color: {tema['subtext']} !important;
-        font-size: 1.1rem;
-        font-weight: 300;
-        margin-top: 5px;
-    }}
+    .app-title {{ color: {tema['accent']} !important; font-size: 2.5rem; font-weight: bold; margin: 0; }}
+    .app-subtitle {{ color: {tema['subtext']} !important; font-size: 1.1rem; font-weight: 300; margin-top: 5px; }}
 
-    .footer {{ 
-        position: fixed; 
-        left: 0; 
-        bottom: 0; 
-        width: 100%; 
-        background-color: {tema['bg']}; 
-        color: {tema['subtext']}; 
-        text-align: center; 
-        padding: 10px; 
-        font-size: 12px; 
-        border-top: 1px solid {tema['border']}; 
-        z-index: 999; 
+    /* --- FOOTER --- */
+    .custom-footer {{ 
+        position: fixed; left: 0; bottom: 0; width: 100%; 
+        background-color: {tema['bg']}; color: {tema['subtext']}; 
+        text-align: center; padding: 10px; font-size: 12px; 
+        border-top: 1px solid {tema['border']}; z-index: 999; transition: background-color 0.3s ease;
     }}
     </style>
     """, unsafe_allow_html=True)
@@ -207,7 +165,6 @@ def bayt_cevir(image):
     return buf.getvalue()
 
 def sahne_olustur(client, urun_resmi, prompt_text):
-    # Hafıza dostu temizleme
     max_boyut = 1200
     if urun_resmi.width > max_boyut or urun_resmi.height > max_boyut:
         urun_resmi.thumbnail((max_boyut, max_boyut), Image.Resampling.LANCZOS)
@@ -241,12 +198,12 @@ def yerel_islem(urun_resmi, islem_tipi):
     bg.paste(temiz_urun, mask=temiz_urun)
     return bg
 
-# --- ÖZEL BAŞLIK ALANI (Logo) ---
+# --- ÖZEL BAŞLIK ALANI (Dinamik Logo) ---
 logo_html = ""
 if os.path.exists("ALPTECHAI.png"):
-    import base64
     with open("ALPTECHAI.png", "rb") as f:
         data = base64.b64encode(f.read()).decode("utf-8")
+        # Logoya CSS sınıfını ekledik, böylece renk değiştirebilecek
         logo_html = f'<img src="data:image/png;base64,{data}" class="logo-img">'
 
 st.markdown(f"""
@@ -295,9 +252,9 @@ if kaynak_dosya:
             islem_tipi_local = None 
             
             with tab_hazir:
-                secilen_tema = st.selectbox("Ortam Seçiniz:", list(TEMA_LISTESI.keys()))
-                if secilen_tema:
-                    kod = TEMA_LISTESI[secilen_tema]
+                secilen_tema_input = st.selectbox("Ortam Seçiniz:", list(TEMA_LISTESI.keys()))
+                if secilen_tema_input:
+                    kod = TEMA_LISTESI[secilen_tema_input]
                     if kod.startswith("ACTION_"): islem_tipi_local = kod
                     else: final_prompt = kod
 
@@ -360,4 +317,4 @@ if kaynak_dosya:
                 st.rerun()
 
 # Footer
-st.markdown("<div class='footer'>ALPTECH AI Stüdyo © 2025 | Developed by Alper</div>", unsafe_allow_html=True)
+st.markdown("<div class='custom-footer'>ALPTECH AI Stüdyo © 2025 | Developed by Alper</div>", unsafe_allow_html=True)

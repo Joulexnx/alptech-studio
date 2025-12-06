@@ -1,6 +1,6 @@
 """
 File: app.py
-ALPTECH AI Stüdyo — Apple-style full single-file revision + marka kimliği + yardımcı fonksiyonlar
+ALPTECH AI Stüdyo — Apple-style, e-ticaret odaklı temalar + logo
 """
 
 from __future__ import annotations
@@ -28,6 +28,9 @@ else:
 DEFAULT_MODEL = st.secrets.get("OPENAI_MODEL", "gpt-4o-mini")
 WEATHER_API_KEY = st.secrets.get("WEATHER_API_KEY", None)
 WEATHER_DEFAULT_CITY = st.secrets.get("WEATHER_DEFAULT_CITY", "İstanbul")
+
+# Logo dosyası (app.py ile aynı klasörde)
+LOGO_PATH = "ALPTECHAI.png"
 
 st.set_page_config(
     page_title="ALPTECH AI Stüdyo",
@@ -143,19 +146,80 @@ if "app_mode" not in st.session_state:
     st.session_state.app_mode = "📸 Stüdyo Modu (Görsel Düzenleme)"
 
 # ----------------------------
-# TEMA LISTESI
+# E-TİCARET ODAKLI TEMA LİSTESİ
 # ----------------------------
 TEMA_LISTESI = {
+    # Yerel işlemler (rembg + düz arka plan)
     "🧹 Arka Planı Kaldır (Şeffaf)": "ACTION_TRANSPARENT",
-    "⬛ Düz Siyah Fon (Mat)": "ACTION_BLACK",
-    "⬜ Düz Beyaz Fon": "ACTION_WHITE",
-    "🍦 Krem / Bej Fon": "ACTION_BEIGE",
-    "🏛️ Mermer Zemin (Lüks)": "Professional product photography, close-up shot of the object placed on a polished white carrara marble podium. Soft cinematic lighting, realistic shadows, depth of field, 8k resolution, luxury aesthetic.",
-    "🪵 Ahşap Zemin (Doğal)": "Professional product photography, object placed on a textured rustic oak wooden table. Warm sunlight coming from the side, dappled shadows, blurred nature background, cozy atmosphere, photorealistic.",
-    "🧱 Beton Zemin (Modern)": "Professional product photography, object placed on a raw grey concrete surface. Hard dramatic lighting, high contrast, sharp shadows, urban minimalist style, 8k.",
-    "🛋️ İpek Kumaş (Zarif)": "Professional product photography, object resting on flowing champagne-colored silk fabric. Softbox lighting, elegant reflections, fashion magazine style, macro details.",
-    "💡 Profesyonel Stüdyo": "High-end commercial product photography, object placed on an infinity curve background. Three-point lighting setup, rim light to separate object from background, ultra sharp focus.",
-    "🌑 Karanlık Mod (Dark Studio)": "Professional product photography, object placed on a matte black non-reflective surface. Dark studio background, clean, dramatic rim lighting highlighting the object contours, minimal shadows, no reflections.",
+    "⬜ Saf Beyaz Fon (E-ticaret)": "ACTION_WHITE",
+    "⬛ Saf Siyah Fon (Premium)": "ACTION_BLACK",
+    "🍦 Krem / Bej Fon (Soft)": "ACTION_BEIGE",
+
+    # AI sahne — profesyonel e-ticaret
+    "🛒 Katalog Stüdyosu (Beyaz)": (
+        "Clean e-commerce product photo of the object on a pure white seamless background. "
+        "Soft diffused studio lighting, natural soft shadow under the product, Amazon listing style, 4k, ultra sharp."
+    ),
+    "📦 Ürün Kartı (Yumuşak Gölge)": (
+        "E-commerce catalog shot of the object on a very light grey to white gradient background. "
+        "Soft drop shadow, subtle reflection, minimalistic high-end cosmetics style, centered composition."
+    ),
+    "🌫 Nötr Gri Fon (Universal)": (
+        "Professional product photography of the object on a neutral light grey seamless background. "
+        "Soft softbox lighting, gentle vignette, clean catalogue style, 4k."
+    ),
+    "💡 Profesyonel Stüdyo (3 Nokta Işık)": (
+        "High-end studio product photo, object on an infinity curve background. "
+        "Three-point lighting setup, key light, fill light, and rim light, ultra sharp focus, commercial advertising style."
+    ),
+    "🌑 Karanlık Stüdyo (Drama)": (
+        "Professional product shot on a matte black non-reflective background. "
+        "Dramatic rim lighting, strong contrast, subtle reflection under the product, cinematic mood."
+    ),
+
+    # Zemin temaları (AI sahne)
+    "🏛️ Mermer Zemin (Lüks)": (
+        "Luxury product photo of the object placed on a polished white carrara marble podium. "
+        "Soft cinematic lighting, realistic shadows, depth of field, 8k, luxury aesthetic."
+    ),
+    "🪵 Ahşap Zemin (Doğal)": (
+        "Product photo of the object on a textured warm oak wooden table. "
+        "Soft daylight coming from the side, blurred cozy home background, natural lifestyle look."
+    ),
+    "🧱 Beton Zemin (Modern)": (
+        "Minimalist product photo of the object on a raw grey concrete surface. "
+        "Hard directional light, high contrast, modern industrial style, 8k."
+    ),
+    "🛋️ İpek Kumaş (Zarif)": (
+        "Elegant product photo of the object resting on flowing champagne-colored silk fabric. "
+        "Soft studio lighting, fashion editorial look, shallow depth of field."
+    ),
+
+    # Yaşam tarzı / ortam temaları
+    "🏠 Modern Salon Ortamı": (
+        "Lifestyle product photo of the object on a modern living room coffee table. "
+        "Soft natural daylight from a large window, blurred sofa and decor in the background, Scandinavian interior style."
+    ),
+    "🍽 Mutfak Tezgahı (Gıda / Mutfak Ürünü)": (
+        "Product photo of the object on a bright kitchen countertop. "
+        "White cabinets and soft daylight, slightly blurred background, fresh and clean cooking atmosphere."
+    ),
+    "🛁 Banyo Tezgahı (Kozmetik)": (
+        "Cosmetics-style product photo of the object on a light bathroom counter with a blurred mirror and tiles in the background. "
+        "Soft top lighting, clean spa-like aesthetic."
+    ),
+    "🌿 Doğal Dış Mekan (Yeşillik)": (
+        "Product photo of the object outdoors on a simple neutral surface with blurred green plants and trees in the background. "
+        "Soft natural daylight, bokeh background, fresh and organic feeling."
+    ),
+    "🌅 Gün Batımı Tonları (Sıcak)": (
+        "Product photo of the object with a warm gradient background in sunset colors (orange, pink, purple). "
+        "Soft cinematic lighting, gentle reflections, premium cosmetic ad style."
+    ),
+    "🍬 Pastel Gradient (Minimal)": (
+        "Minimal product photo of the object standing on a soft pastel gradient background "
+        "in light pink, lilac and blue tones. Clean composition, subtle soft shadow."
+    ),
 }
 
 # ----------------------------
@@ -264,7 +328,7 @@ def build_system_talimati():
 
     - Her zaman kendini "ALPTECH AI" olarak tanıt.
     - Seni kimin geliştirdiği sorulduğunda: "ALPTECH AI ekibi" de.
-    - OpenAI veya arka plandaki sağlayıcılardan bahsetme; markayı öne çıkar.
+    - Arka plandaki teknolojiden bahsetme; markayı öne çıkar.
     - Türkçe varsayılan dilin; kullanıcı başka dilde yazarsa o dilde devam et.
 
     Konuşma tarzın:
@@ -391,10 +455,24 @@ def yerel_islem(urun_resmi: Image.Image, islem_tipi: str):
     return bg
 
 # ----------------------------
-# UI — Başlık ve mod düğmeleri
+# UI — HEADER + MOD DÜĞMELERİ
 # ----------------------------
-st.title("ALPTECH AI Stüdyo")
-st.write("Ürününü ekle, hayaline göre profesyonel bir şekilde düzenle.")
+header_left, header_right = st.columns([0.16, 0.84])
+with header_left:
+    try:
+        st.image(LOGO_PATH, use_column_width=True)
+    except Exception:
+        pass
+with header_right:
+    st.markdown(
+        """
+        <h1 style="margin-bottom: 0.2rem;">ALPTECH AI Stüdyo</h1>
+        <p style="margin-top: 0; color: #8b8e99; font-size: 0.95rem;">
+        Ürününü ekle, e-ticaret siteleri için profesyonel stüdyo sahneleri oluştur.
+        </p>
+        """,
+        unsafe_allow_html=True,
+    )
 
 col_bosluk, col_tema = st.columns([10, 1])
 with col_tema:

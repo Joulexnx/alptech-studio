@@ -4,7 +4,6 @@ from PIL import Image, ImageOps, ImageFilter
 from io import BytesIO
 from openai import OpenAI
 import requests
-import base64
 import os
 
 # ==========================================
@@ -18,28 +17,15 @@ else:
 # ==========================================
 
 # --- SAYFA AYARLARI ---
-icon_path = "ALPTECHAI.png" if os.path.exists("ALPTECHAI.png") else "🤖"
-st.set_page_config(page_title="ALPTECH AI Stüdyo", page_icon=icon_path, layout="wide", initial_sidebar_state="collapsed")
+st.set_page_config(page_title="ALPTECH AI Stüdyo", page_icon="🤖", layout="wide", initial_sidebar_state="collapsed")
 
-# --- TEMA MANTIĞI ---
-col_bosluk, col_tema = st.columns([10, 1]) 
-with col_tema:
-    # HATA ÇÖZÜMÜ: Benzersiz key eklendi
-    karanlik_mod = st.toggle("🌙 / ☀️", value=True, key="theme_toggle") 
+# --- SABİT KOYU TEMA PALETİ ---
+tema = {
+    "bg": "#0e1117", "text": "#ffffff", "subtext": "#b0b0b0", "card_bg": "#161616", "border": "#333333",
+    "accent": "#00BFFF", "button_hover": "#009ACD", "input_bg": "#262730"
+}
 
-# --- RENK PALETLERİ ---
-if karanlik_mod:
-    tema = {
-        "bg": "#0e1117", "text": "#ffffff", "subtext": "#b0b0b0", "card_bg": "#161616", "border": "#333333",
-        "accent": "#00BFFF", "button_hover": "#009ACD", "logo_filter": "none", "input_bg": "#262730"
-    }
-else:
-    tema = {
-        "bg": "#f0f2f6", "text": "#262730", "subtext": "#555555", "card_bg": "#ffffff", "border": "#cccccc",
-        "accent": "#0078D4", "button_hover": "#0062A3", "logo_filter": "invert(1) brightness(0.2)", "input_bg": "#ffffff"
-    }
-
-# --- TASARIM (DİNAMİK CSS) ---
+# --- TASARIM (SABİT KOYU CSS) ---
 st.markdown(f"""
     <style>
     /* --- GENEL SAYFA VE GİZLEME --- */
@@ -50,14 +36,17 @@ st.markdown(f"""
     /* --- YAZI RENK ZORLAMASI --- */
     h1, h2, h3, h4, p, li, span, div, label, .stMarkdown, .stText {{ color: {tema['text']} !important; }}
     
-    /* --- SELECTBOX TEXT FİKSİ --- */
+    /* --- INPUT VE SELECTBOX FİKSİ --- */
     div[data-baseweb="select"] > div {{
         background-color: {tema['input_bg']} !important;
         color: {tema['text']} !important;
         border-color: {tema['border']} !important;
     }}
-    div[data-baseweb="popover"] div[role="listbox"] div[role="option"] {{
-        color: {tema['text']} !important;
+    div[data-baseweb="popover"] {{ background-color: {tema['input_bg']} !important; }}
+    div[data-baseweb="popover"] div[role="listbox"] div[role="option"] {{ color: {tema['text']} !important; }}
+    .stTextArea textarea {{ 
+        border: 1px solid {tema['border']} !important; 
+        background-color: {tema['input_bg']} !important; color: {tema['text']} !important; 
     }}
     
     /* --- GÖRSEL KONTEYNER --- */
@@ -67,6 +56,10 @@ st.markdown(f"""
         margin-bottom: 15px; display: flex; justify-content: center; align-items: center;
     }}
     .container-header {{ font-weight: bold; margin-bottom: 10px; color: {tema['accent']} !important; }}
+    
+    /* --- BAŞLIKLAR --- */
+    .app-title {{ color: {tema['accent']} !important; font-size: 2.5rem; font-weight: bold; }}
+    .app-subtitle {{ color: {tema['subtext']} !important; font-size: 1.1rem; }}
 
     /* --- FOOTER --- */
     .custom-footer {{ 
@@ -143,24 +136,9 @@ def yerel_islem(urun_resmi, islem_tipi):
 
 # --- KODUN BAŞLANGICI ---
 
-# --- LOGO VE BAŞLIK YERLEŞİMİ ---
-# Logoyu ve başlığı aynı anda yerleştiriyoruz.
-col_logo_sol, col_baslik, col_toggle = st.columns([1, 8, 1])
-
-# 1. LOGO ALANI (Sol - Artık yok)
-
-# 2. BAŞLIKLAR (Merkez)
-with col_baslik:
-    st.markdown(f'<h1 class="app-title">ALPTECH AI Stüdyo</h1>', unsafe_allow_html=True)
-    st.markdown(f'<p class="app-subtitle">Ürününü ekle, hayaline göre profesyonel bir şekilde düzenle.</p>', unsafe_allow_html=True)
-
-# 3. TEMA TOGGLE (Sağ) - Logo artık burada (Basitçe alt alta)
-with col_toggle:
-    if os.path.exists("ALPTECHAI.png"):
-        st.image("ALPTECHAI.png", width=40) # Küçültülmüş logo
-    st.toggle("🌙 / ☀️", value=True, key="tema_toggle")
-    
-st.write("") 
+# --- ANA BAŞLIK ---
+st.title("ALPTECH AI Stüdyo")
+st.write("Ürününü ekle, hayaline göre profesyonel bir şekilde düzenle.")
 
 # --- GİRİŞ SEKMELERİ ---
 tab_yukle, tab_kamera = st.tabs(["📁 Dosya Yükle", "📷 Kamera"])

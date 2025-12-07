@@ -1,15 +1,14 @@
 """
 File: app.py
-ALPTECH AI Stüdyo — v3.3 (GPT-5.1 + E-ticaret Uzmanı, Tetiklemeli Mod)
-- GPT-5.1 entegrasyonu (OPENAI_MODEL yoksa varsayılan: gpt-5.1)
+ALPTECH AI Stüdyo — v4.0 (E-Ticaret Pro)
 - Apple-style UI
 - Studio + Chat modları
-- TR gerçek saat (WorldTimeAPI, fallback local)
+- TR gerçek saat (WorldTimeAPI fallback local)
 - OpenWeather: Geo + Current + 7-günlük tahmin (TR şehirleri)
-- ALPTECH AI kimliği, güvenlik filtresi
+- ALPTECH AI kimlik, güvenlik filtresi
 - Chat içinde: '+' ile dosya/görsel yükleme, 🎤 sesle yaz (Web Speech API)
-- Sol sidebar: konuşma geçmişi, hazır prompt kütüphanesi, basit analytics
-- E-ticaret profesyonel sistem talimatı (TETİKLEMELİ MOD)
+- Sol sidebar: konuşma geçmişi, prompt kütüphanesi, E-Ticaret akıllı şablonları, basit analytics
+- GPT-5.1 odaklı, e-ticaret uzmanı sohbet motoru
 """
 
 from __future__ import annotations
@@ -38,7 +37,7 @@ else:
         "⚠️ OPENAI_API_KEY tanımlı değil. Sohbet ve AI sahne düzenleme özellikleri devre dışı."
     )
 
-# GPT-5.1 varsayılan; secrets içinde OPENAI_MODEL varsa onu kullanır.
+# Varsayılan model: GPT-5.1
 DEFAULT_MODEL = st.secrets.get("OPENAI_MODEL", "gpt-5.1")
 
 # OpenWeather
@@ -47,7 +46,7 @@ WEATHER_API_KEY = st.secrets.get(
 )
 WEATHER_DEFAULT_CITY = st.secrets.get("WEATHER_DEFAULT_CITY", "İstanbul")
 
-# Logo dosya yolu (uygulama dizininde)
+# Logo dosya yolu (uygulama dizininde olmalı)
 LOGO_PATH = "ALPTECHAI.png"
 
 # Logo base64
@@ -158,7 +157,7 @@ def apply_apple_css(tema: dict):
         color: {tema['text']} !important;
     }}
 
-    /* Chat input (koyu mod mobil dahil) */
+    /* Chat input text görünür (koyu mod mobil dahil) */
     [data-testid="stChatInput"] textarea,
     [data-testid="stChatInput"] input {{
         background: {tema['input_bg']} !important;
@@ -190,6 +189,7 @@ def apply_apple_css(tema: dict):
 
 
 def inject_voice_js():
+    """Web Speech API ile stChatInput içine '🎤' butonu ekler."""
     st.markdown(
         """
 <script>
@@ -265,10 +265,7 @@ if "chat_history" not in st.session_state:
     st.session_state.chat_history = [
         {"role": "assistant", "content": "Merhaba! Hangi modu kullanmak istersin?"}
     ]
-if (
-    "chat_sessions" in st.session_state
-    and "Oturum 1" not in st.session_state.chat_sessions
-):
+if "chat_sessions" in st.session_state and "Oturum 1" not in st.session_state.chat_sessions:
     st.session_state.chat_sessions["Oturum 1"] = st.session_state.chat_history
 
 if "chat_image" not in st.session_state:
@@ -599,7 +596,7 @@ def moderate_content(text: str) -> str | None:
         if re.search(pat, text):
             return (
                 "Bu isteğe doğrudan yardımcı olamam. "
-                "Ancak konuyu daha güvenli ve olumlu bir şekilde ele almak istersen birlikte uyarlayabiliriz. 🙂"
+                "Ancak istediğin konuyu daha güvenli ve olumlu bir şekilde ele almak istersen beraber bakabiliriz. 🙂"
             )
     return None
 
@@ -622,7 +619,8 @@ def custom_identity_interceptor(user_message: str) -> str | None:
     if any(t in msg for t in triggers):
         return (
             "Beni **ALPTECH AI** ekibi geliştirdi 🚀\n\n"
-            "E-ticaret, ürün metinleri ve görsel stüdyo konularında profesyonel bir asistan olarak çalışıyorum."
+            "Görevim; senin için akıllı bir stüdyo asistanı olmak, ürün görsellerini profesyonelleştirmek "
+            "ve metin tarafında da markanı güçlendirmek. Her zaman yanındayım. 🙂"
         )
     return None
 
@@ -643,88 +641,32 @@ def custom_utility_interceptor(user_message: str) -> str | None:
 
     return None
 
-# ===========================
-# GPT-5.1 E-TİCARET SİSTEM TALİMATI (TETİKLEMELİ MOD)
-# ===========================
+
 def build_system_talimati():
-    """
-    ALPTECH AI — GPT-5.1 tabanlı profesyonel e-ticaret asistan perso­nası.
-    Tetiklemeli mod: sadece kullanıcı açıkça e-ticaret içeriği istediğinde tam paket üret.
-    """
     zaman_bilgisi = turkce_zaman_getir()
     return f"""
-Sen **ALPTECH AI** adlı üst seviye profesyonel bir e-ticaret yapay zekâ asistanısın.
-Arka planda gelişmiş modern bir yapay zekâ modeli kullanırsın; bunu kullanıcıya anlatmazsın.
-Asla OpenAI, ChatGPT, GPT-4, GPT-5 gibi model isimleri kullanmazsın.
-Kendini her zaman "ALPTECH AI ekibi tarafından geliştirilen profesyonel e-ticaret asistanı" olarak tanıtırsın.
+    Senin adın **ALPTECH AI**.
+    ALPTECH AI ekibi tarafından geliştirilen, modern ve profesyonel bir yapay zeka asistansın.
 
-Genel görevlerin:
-- Ürün, marka, mağaza ve pazarlama ile ilgili sorularda net, kurumsal ve pratik cevaplar vermek.
-- Kullanıcı isterse detaylı e-ticaret içeriği üretmek.
-- Kullanıcının seviyesine göre sade ama profesyonel açıklamalar yapmak.
+    Ana odakların:
+    - E-ticaret ve online satış: ürün açıklamaları, başlıklar, etiketler, fiyat stratejisi, varyant çıkarımı,
+      yorum analizi, sosyal medya reklam metinleri ve marka hikâyesi üretmek.
+    - Ürün görselleri: arka plan kaldırma, sahne oluşturma, katalog/stüdyo/pazaryeri uyumlu görseller önermek.
+    - Genel sorularda da net, sade ve gerektiğinde detaylı cevaplar vermek.
 
-ÇALIŞMA MODLARIN
-────────────────────────────────
-1) NORMAL MOD (varsayılan):
-- Kullanıcı sana genel bir soru sorduğunda (e-ticaret dışı veya kısa cevap bekleyen konular):
-  - Sadece sorulanı yanıtla.
-  - Kısa veya orta uzunlukta, net ve profesyonel bir cevap ver.
-  - Aşırı uzun, gereksiz detaylı ve paketli cevaplar verme.
-  - Aşağıdaki e-ticaret içerik paketini otomatik olarak ÇALIŞTIRMA.
+    Ürün açıklaması yazarken varsayılan yapın:
+    - Profesyonel & kurumsal ton, sade ve anlaşılır Türkçe.
+    - "Ürünün öne çıkan 5 faydası" maddeleri.
+    - "Kutu içeriği" bölümü.
+    - "Hedef kitle" bölümü.
+    - "Kullanım önerileri" bölümü.
+    - Sonunda güçlü bir "satın almaya yönlendiren çağrı" (CTA).
 
-2) E-TİCARET İÇERİK PAKETİ MODU (tetiklemeli):
-- Kullanıcı açıkça aşağıdakilere benzer niyet ifade ederse:
-  - "Ürün açıklaması hazırla", "E-ticaret için ürün metni yaz"
-  - "SEO uyumlu açıklama", "Trendyol/Hepsiburada/Amazon için açıklama"
-  - "Ürün faydalarını yaz", "kutu içeriği", "CTA yaz", "USP çıkar"
-  - "SEO anahtar kelime", "etiket önerisi", "Trendyol etiketi"
-  - "Fiyatlandırma önerisi", "fiyat psikolojisi", "fiyat stratejisi"
-  - "Yorum analizi yap", "müşteri yorumlarını analiz et"
-  - "Sosyal medya reklam metni yaz", "Instagram postu açıklaması"
-  - "Marka hikâyesi yaz", "marka hikayesi"
-  - "tam paket", "full e-ticaret paketi", "hepsini çıkar"
-- Bu durumda **E-TİCARET PAKETİ MODU**nu aktif et ve aşağıdaki tam paketi üret.
+    Kendi kimliğini daima "ALPTECH AI" olarak tanıt,
+    seni kimin geliştirdiği sorulduğunda "ALPTECH AI ekibi" de.
 
-E-TİCARET İÇERİK PAKETİ (yalnızca tetiklendiğinde)
-────────────────────────────────
-Bir ürün veya hizmet için bu mod aktif olduğunda mümkünse şu bölümleri sırayla üret:
-
-1️⃣ SEO uyumlu profesyonel ürün açıklaması  
-2️⃣ ⭐ Ürünün öne çıkan 5 faydası  
-3️⃣ 📦 Kutu içeriği  
-4️⃣ 🎯 Hedef kitle  
-5️⃣ 🛠 Kullanım önerileri  
-6️⃣ 🛒 Satın almaya yönlendiren CTA  
-7️⃣ USP — ürünün benzersiz değer önerisi  
-8️⃣ SEO için 10 anahtar kelime  
-9️⃣ Trendyol, Amazon ve Hepsiburada için kısa açıklama önerileri  
-🔟 Markaya uygun tek cümlelik mağaza sloganı  
-1️⃣1️⃣ A/B testli iki farklı başlık (Title A & Title B)  
-1️⃣2️⃣ Trendyol etiket önerileri (yüksek arama hacmine göre)  
-1️⃣3️⃣ Fiyat psikolojisi optimizasyon önerisi  
-1️⃣4️⃣ Varyant analizi: renk, beden, kapasite gibi varyantları listeleme (bilgi varsa)  
-1️⃣5️⃣ Müşteri yorum analizi: memnuniyet ve şikâyet temaları, aksiyon önerileri  
-1️⃣6️⃣ Sosyal medya reklam metinleri: özellikle Instagram/Trendyol için kısa ve etkili kopyalar  
-1️⃣7️⃣ Mağaza için kısa premium marka hikâyesi (kullanıcı isterse genişletilebilir)
-
-Uzmanlık alanların:
-- Ürün açıklaması, fayda analizi, varyant çıkarımı
-- Kutu içeriği ve hedef kitle tanımı
-- Kullanım önerileri ve CTA kurgusu
-- USP, SEO ve etiket/keyword önerileri
-- Fiyat psikolojisi ve fiyatlandırma stratejisi
-- Yorum analizi (memnuniyet & şikayet temaları)
-- Sosyal medya reklam metinleri
-- Marka hikayesi ve marka tonu
-
-Dil & Ton kuralları:
-- Her zaman profesyonel, kurumsal ve güven verici bir üslup kullan.
-- Abartısız, net ve satış odaklı ol.
-- Bilgiyi mümkün olduğunca başlıklar ve madde işaretleriyle yapılandır.
-- Kullanıcı e-ticaret dışı bir soru sorarsa normal, kısa/orta cevap ver; paket moduna ZORLAMA.
-
-Sistem zamanı: {zaman_bilgisi}
-"""
+    Sistem notu: Bu yanıtlar {zaman_bilgisi} tarihinde oluşturuluyor.
+    """
 
 
 def normal_sohbet(client: OpenAI):
@@ -755,13 +697,13 @@ def normal_sohbet(client: OpenAI):
         else:
             messages.append({"role": "assistant", "content": msg["content"]})
 
-    model_to_use = st.secrets.get("OPENAI_MODEL", DEFAULT_MODEL)
+    model_to_use = st.secrets.get("OPENAI_MODEL", DEFAULT_MODEL) or "gpt-5.1"
     try:
         response = client.chat.completions.create(
             model=model_to_use,
             messages=messages,
-            temperature=0.3,
-            max_tokens=1400,
+            temperature=0.25,
+            max_tokens=1500,
         )
         try:
             return response.choices[0].message.content
@@ -905,16 +847,15 @@ def sidebar_ui():
     st.sidebar.markdown("**Hazır Promptlar**")
     prompt_exp = st.sidebar.expander("Metin & Kampanya", expanded=False)
     with prompt_exp:
-        if st.button("🛍 Ürün açıklaması paketi", key="p_prod_desc"):
+        if st.button("🛍 Ürün açıklaması oluştur", key="p_prod_desc"):
             st.session_state.pending_prompt = (
-                "Bir e-ticaret ürünü için tam e-ticaret paketi üret: "
-                "ürün açıklaması, 5 fayda, hedef kitle, kutu içeriği, CTA, USP, SEO keyword, "
-                "Trendyol/Amazon/Hepsiburada kısa açıklamalar, etiketler, marka sloganı ve fiyat önerisi."
+                "Bir e-ticaret ürünü için SEO uyumlu, ikna edici bir ürün açıklaması "
+                "yazar mısın? Özellikler: [ÜRÜN ADI], [ÖNE ÇIKAN ÖZELLİKLER], [KULLANIM ALANLARI]."
             )
         if st.button("🎉 Kampanya / İndirim duyurusu", key="p_campaign"):
             st.session_state.pending_prompt = (
-                "Markam için indirim kampanyası duyurusu yazar mısın? "
-                "Kısa, kurumsal ama sıcak bir dille; CTA içersin."
+                "Markam için yüzde indirim içeren kısa bir kampanya duyurusu metni yazar mısın? "
+                "Ton: samimi, enerjik, aksiyona çağıran."
             )
         if st.button("📢 Eğitim / Etkinlik duyurusu", key="p_event"):
             st.session_state.pending_prompt = (
@@ -926,13 +867,113 @@ def sidebar_ui():
     with prompt_img:
         if st.button("📲 Instagram post tasarım fikri", key="p_ig_post"):
             st.session_state.pending_prompt = (
-                "Bir ürün için Instagram post tasarım fikri üret. "
-                "Arka plan, renk paleti, tipografi ve çekim açısı önerisi içersin."
+                "Bir ürün için Instagram post tasarım fikri üret. Arka plan, renk paleti, "
+                "tipografi ve çekim açısı önerisi içersin."
             )
         if st.button("🎯 Reklam kreatif fikirleri", key="p_ad_ideas"):
             st.session_state.pending_prompt = (
                 "Yeni çıkacak bir ürün için 3 farklı dijital reklam kreatif fikri öner. "
                 "Her fikirde hedef kitle, mesaj ve görsel tarzı belirt."
+            )
+
+    # =======================
+    # E-TİCARET AKILLI ŞABLONLAR
+    # =======================
+    ecom = st.sidebar.expander("🛒 E-Ticaret Asistanı (Akıllı Şablonlar)", expanded=False)
+    with ecom:
+        st.write("Birini seç → sohbet kutusuna hazır prompt olarak gelsin.")
+
+        if st.button("📄 Profesyonel ürün açıklaması (5 fayda + kutu içeriği)", key="e_full_desc"):
+            st.session_state.pending_prompt = (
+                "E-ticaret odaklı profesyonel bir ürün açıklaması yazmanı istiyorum.\n\n"
+                "Lütfen şu yapıyı takip et:\n"
+                "1. Kısa giriş paragrafı (markayı ve temel vaadi anlat).\n"
+                "2. **Öne Çıkan 5 Fayda** başlığı altında 5 madde.\n"
+                "3. **Kutu İçeriği** başlığı altında maddeler.\n"
+                "4. **Hedef Kitle** bölümü (madde madde).\n"
+                "5. **Kullanım Önerileri** bölümü.\n"
+                "6. Sonunda güçlü bir satın almaya çağrı (CTA).\n\n"
+                "Ürün bilgileri: [ÜRÜN ADI], [MARKA], [TÜR], [TEKNİK ÖZELLİKLER], [KULLANIM ALANI].\n"
+                "Eksik bilgi varsa önce benden sorularla netleştir."
+            )
+
+        if st.button("🖼 Görselden ürün analizi ve açıklama", key="e_image_analysis"):
+            st.session_state.pending_prompt = (
+                "Yüklediğim ürün görseline bakarak ürünün ne olduğunu kısaca tarif et ve "
+                "e-ticaret odaklı bir açıklama yaz. Eğer sadece görsel varsa, marka ismini uydurma; "
+                "genel bir isim kullan. Çıktıda öne çıkan özellikler, olası kullanım alanları "
+                "ve hedef kitleyi de belirt."
+            )
+
+        if st.button("🧪 Başlık için A/B test (5 varyasyon)", key="e_title_ab"):
+            st.session_state.pending_prompt = (
+                "Bir e-ticaret ürünü için 5 farklı SEO uyumlu ürün başlığı üret. "
+                "Her başlıkta marka + ana ürün adı + 1-2 adet güçlü fayda veya özellik geçsin. "
+                "Başlıkları A/B test yapar gibi numaralı liste halinde ver."
+            )
+
+        if st.button("🏷 Trendyol / Pazaryeri etiketleri", key="e_tags"):
+            st.session_state.pending_prompt = (
+                "Bir ürün için Trendyol ve diğer pazaryerlerinde kullanılabilecek etiket/arama kelimesi listesi üret. "
+                "Türkçe, küçük harfle, virgülle ayrılmış en az 25 etiket ver. "
+                "Genel/kategori terimleriyle birlikte niş arama terimlerini de ekle."
+            )
+
+        if st.button("💰 Fiyat psikolojisi & konumlandırma", key="e_pricing"):
+            st.session_state.pending_prompt = (
+                "Bir e-ticaret ürünü için fiyat psikolojisi odaklı öneriler ver.\n\n"
+                "Lütfen şu başlıklarla yanıtla:\n"
+                "- Hedef fiyat aralığı önerisi (TL)\n"
+                "- Psikolojik fiyat formatı (ör: 499 TL yerine 499,90 TL gibi)\n"
+                "- Değer algısını yükseltmek için paketleme veya kampanya önerileri\n"
+                "- Rakipten farklılaşma noktaları (özellik, hizmet, garanti, kargo vb.)\n\n"
+                "Ürün kategorisi ve tahmini segmenti: [ÜRÜN / HEDEF KİTLE / PAZAR]."
+            )
+
+        if st.button("📦 Ürün varyantlarını çıkar (renk/beden/kapasite)", key="e_variants"):
+            st.session_state.pending_prompt = (
+                "Aşağıda sana vereceğim ürün açıklaması veya teknik özellik metnine göre "
+                "ürünün olası varyantlarını listele.\n\n"
+                "Çıktıyı şu formatta ver:\n"
+                "- Renk seçenekleri\n"
+                "- Beden / numara seçenekleri (varsa)\n"
+                "- Kapasite / GB / litre / adet seçenekleri (varsa)\n"
+                "- Diğer önemli varyantlar (ör: set, paket, model yılı)\n\n"
+                "Her bölümde madde madde ve sade Türkçe kullan."
+            )
+
+        if st.button("⭐ Müşteri yorum analizi (memnuniyet / şikâyet)", key="e_reviews"):
+            st.session_state.pending_prompt = (
+                "E-ticaret ürününe ait müşteri yorumlarını aşağıya yapıştıracağım.\n\n"
+                "Lütfen şu çıktıyı üret:\n"
+                "1. En çok tekrar eden memnuniyet temaları (madde madde).\n"
+                "2. En çok tekrar eden şikâyet / sorun temaları (madde madde).\n"
+                "3. Ürün geliştirme için net öneriler.\n"
+                "4. Mağaza iletişim tonu için kısa öneri.\n\n"
+                "Analizi sade ve aksiyon alınabilir şekilde yap."
+            )
+
+        if st.button("📣 Sosyal medya reklam metinleri", key="e_ads"):
+            st.session_state.pending_prompt = (
+                "Bir ürün için sosyal medya reklam metinleri üret.\n\n"
+                "Şu formatta yanıtla:\n"
+                "- Instagram için 2 kısa başlık + açıklama\n"
+                "- TikTok için 2 kısa metin (daha genç, dinamik ton)\n"
+                "- Facebook/Meta için 2 adet biraz daha açıklayıcı metin\n"
+                "- Her setin altında uygun 8-10 adet hashtag önerisi\n\n"
+                "Ürün: [ÜRÜN ADI / KATEGORİ / HEDEF KİTLE]."
+            )
+
+        if st.button("🏪 Mağaza için premium marka hikâyesi", key="e_brand_story"):
+            st.session_state.pending_prompt = (
+                "Online mağazam için premium bir marka hikâyesi yazmanı istiyorum.\n\n"
+                "Lütfen şu adımlara göre yaz:\n"
+                "1. Kısa ve etkileyici açılış (neden kurulduğumuzu anlat).\n"
+                "2. Marka değerleri (3-5 madde).\n"
+                "3. Müşteriye verdiğimiz sözler (hız, kalite, iade, destek vb.).\n"
+                "4. Uzun vadeli vizyon (Türkiye ve/veya global).\n"
+                "5. Sonunda müşteriyi duygusal olarak bağlayan kısa bir kapanış paragrafı.\n\n"
+                "Marka adı, kategori ve hedef kitleyi ben vereceğim."
             )
 
     st.sidebar.markdown("---")
@@ -988,7 +1029,7 @@ with header_right:
         """
         <h1 style="margin-bottom: 0.2rem;">ALPTECH AI Stüdyo</h1>
         <p style="margin-top: 0; font-size: 0.95rem;">
-        Ürününü ekle, e-ticaret ve sosyal medya için profesyonel sahneler oluştur.
+        Ürününü ekle, e-ticaret ve sosyal medya için profesyonel sahneler oluştur; GPT-5.1 destekli asistanla metinlerini hazırla.
         </p>
         """,
         unsafe_allow_html=True,

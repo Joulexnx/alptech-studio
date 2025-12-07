@@ -437,30 +437,50 @@ def get_time_answer() -> str:
 
 
 def extract_city_from_message(message: str) -> str | None:
+    """Kullanıcı mesajından şehir ismi çıkarır.
+
+    Eski mantık tek bir kelimeyi hedefliyordu; bu sürüm hem "hava" öncesi
+    hem sonrası kelimeleri, ekleri temizleyerek değerlendiriyor. "hava nasıl
+    bugün Ankara'da" gibi cümlelerde de doğru sonucu verme şansı artar.
+    """
+
     msg = message.lower()
     msg = re.sub(r"[^\wçğıöşü\s]", " ", msg)
     tokens = [t for t in msg.split() if t]
-
-    if "hava" in tokens:
-        idx = tokens.index("hava")
-        if idx >= 1:
-            candidate = tokens[idx - 1]
-        else:
-            candidate = tokens[0]
-    elif tokens:
-        candidate = tokens[0]
-    else:
+    if not tokens:
         return None
 
-    for suf in ["'da", "'de", "'ta", "'te", "da", "de", "ta", "te"]:
-        if candidate.endswith(suf) and len(candidate) > len(suf) + 1:
-            candidate = candidate[: -len(suf)]
-            break
+    suffixes = ["'da", "'de", "'ta", "'te", "da", "de", "ta", "te"]
+    stopwords = {"hava", "nasıl", "durumu", "bugün", "bugun", "şu", "an"}
 
-    candidate = candidate.strip()
-    if not candidate:
+    def clean_token(tok: str) -> str:
+        for suf in suffixes:
+            if tok.endswith(suf) and len(tok) > len(suf) + 1:
+                tok = tok[: -len(suf)]
+                break
+        return tok.strip()
+
+    def pick_candidate(indices: list[int]) -> str | None:
+        for idx in indices:
+            if 0 <= idx < len(tokens):
+                cand = clean_token(tokens[idx])
+                if cand and cand not in stopwords:
+                    return cand
         return None
-    return candidate
+
+    hava_indices = [i for i, t in enumerate(tokens) if t == "hava"]
+    for i in hava_indices:
+        around = [i - 1, i + 1, i + 2]
+        cand = pick_candidate(around)
+        if cand:
+            return cand
+
+    for tok in tokens:
+        cand = clean_token(tok)
+        if cand and cand not in stopwords:
+            return cand
+
+    return None
 
 
 def resolve_city_to_coords(city: str, limit: int = 1):
@@ -516,14 +536,26 @@ def get_weather_answer(location: str | None = None) -> str:
         his = data["main"].get("feels_like", derece)
         nem = data["main"]["humidity"]
         ruzgar = data["wind"]["speed"]
+        yagis_miktari = None
+        for field in ("rain", "snow"):
+            if field in data:
+                val = data[field].get("1h") or data[field].get("3h")
+                if val is not None:
+                    yagis_miktari = (field, val)
+                    break
 
         sehir_gorunum = sehir.title()
+        yagis_satiri = ""
+        if yagis_miktari:
+            etiket = "Yağmur" if yagis_miktari[0] == "rain" else "Kar"
+            yagis_satiri = f"\n🌧️ {etiket}: **{yagis_miktari[1]:.1f} mm**"
         return (
             f"📍 **{sehir_gorunum}**\n"
             f"🌡️ Sıcaklık: **{derece:.1f}°C** (Hissedilen **{his:.1f}°C**)\n"
             f"☁️ Hava: **{durum}**\n"
             f"💧 Nem: **%{nem}**\n"
             f"🍃 Rüzgar: **{ruzgar} m/s**"
+            f"{yagis_satiri}"
         )
     except Exception:
         return "Hava durumu servisinde bir sorun oluştu; lütfen biraz sonra tekrar dene."
@@ -566,8 +598,14 @@ def get_weather_forecast_answer(location: str | None = None, days: int = 7) -> s
             min_t = d["temp"]["min"]
             max_t = d["temp"]["max"]
             desc = d["weather"][0]["description"].capitalize()
+            yagis_ihtimali = d.get("pop")
+            yagis_text = (
+                f", yağış olasılığı **%{yagis_ihtimali * 100:.0f}**"
+                if yagis_ihtimali is not None
+                else ""
+            )
             lines.append(
-                f"- **{tarih}** → {desc}, min **{min_t:.1f}°C**, max **{max_t:.1f}°C**"
+                f"- **{tarih}** → {desc}, min **{min_t:.1f}°C**, max **{max_t:.1f}°C**{yagis_text}"
             )
         return "\n".join(lines)
     except Exception:
@@ -1236,6 +1274,24 @@ elif st.session_state.app_mode == "💬 Sohbet Modu (Genel Asistan)":
                 except Exception as e:
                     st.error("Dosya okunamadı, lütfen tekrar dene.")
                     print("chat upload error:", e)
+
+    with st.expander("⚡ Hızlı işlemler", expanded=False):
+        st.caption(
+            "Bu kısayollar otomatik mesaj yazar ve yanıtı doğrudan sohbet akışına ekler."
+        )
+        q1, q2, q3 = st.columns(3)
+        default_city = WEATHER_DEFAULT_CITY or "İstanbul"
+        if q1.button("🌡️ Anlık hava", key="quick_weather"):
+            st.session_state.pending_prompt = f"{default_city} hava durumu nedir"
+            st.rerun()
+        if q2.button("📆 7 günlük", key="quick_forecast"):
+            st.session_state.pending_prompt = (
+                f"{default_city} için 7 günlük hava tahmini"
+            )
+            st.rerun()
+        if q3.button("⏱️ Saat & tarih", key="quick_time"):
+            st.session_state.pending_prompt = "Şu an saat kaç ve günlerden ne?"
+            st.rerun()
 
     for msg in st.session_state.chat_history:
         with st.chat_message(msg["role"]):

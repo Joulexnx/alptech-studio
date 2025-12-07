@@ -1309,3 +1309,4 @@ st.markdown(
     "<div class='custom-footer'>ALPTECH AI Stüdyo © 2025 | Developed by Alper</div>",
     unsafe_allow_html=True,
 )
+

@@ -1,6 +1,6 @@
 """
 File: app.py
-ALPTECH AI Stüdyo — v3.0
+ALPTECH AI Stüdyo — v3.1
 - Apple-style UI
 - Studio + Chat modları
 - TR gerçek saat (WorldTimeAPI fallback local)
@@ -46,6 +46,14 @@ WEATHER_DEFAULT_CITY = st.secrets.get("WEATHER_DEFAULT_CITY", "İstanbul")
 
 # Logo dosya yolu (uygulama dizininde olmalı)
 LOGO_PATH = "ALPTECHAI.png"
+
+# Logo base64
+LOGO_B64: str | None
+try:
+    with open(LOGO_PATH, "rb") as _lf:
+        LOGO_B64 = base64.b64encode(_lf.read()).decode("utf-8")
+except Exception:
+    LOGO_B64 = None
 
 st.set_page_config(
     page_title="ALPTECH AI Stüdyo",
@@ -118,7 +126,7 @@ def apply_apple_css(tema: dict):
         border: none !important;
         font-weight: 600 !important;
         box-shadow: 0 6px 18px rgba(10,10,20,0.12);
-        transition: transform 120ms ease, box-shadow 120ms ease, transform 120ms ease;
+        transition: transform 120ms ease, box-shadow 120ms ease;
     }}
     .stButton>button:hover {{
         background-color: {tema['button_hover']} !important;
@@ -147,7 +155,7 @@ def apply_apple_css(tema: dict):
         color: {tema['text']} !important;
     }}
 
-    /* Chat input görünür (koyu mod mobil dahil) */
+    /* Chat input text görünür (koyu mod mobil dahil) */
     [data-testid="stChatInput"] textarea,
     [data-testid="stChatInput"] input {{
         background: {tema['input_bg']} !important;
@@ -247,7 +255,6 @@ if "sonuc_gorseli" not in st.session_state:
 if "sonuc_format" not in st.session_state:
     st.session_state.sonuc_format = "PNG"
 
-# Chat oturumları
 if "chat_sessions" not in st.session_state:
     st.session_state.chat_sessions = {}
 if "current_session" not in st.session_state:
@@ -292,12 +299,10 @@ def inc_stat(key: str, step: int = 1):
 # TEMA LİSTESİ (E-TİCARET ODAKLI)
 # ===========================
 TEMA_LISTESI = {
-    # Basit arka plan işlemleri
     "🧹 Arka Planı Kaldır (Şeffaf)": "ACTION_TRANSPARENT",
     "⬜ Saf Beyaz Fon (E-ticaret)": "ACTION_WHITE",
     "⬛ Saf Siyah Fon (Premium)": "ACTION_BLACK",
     "🍦 Krem / Bej Fon (Soft)": "ACTION_BEIGE",
-    # E-ticaret & katalog
     "🛒 Katalog Stüdyosu (Beyaz)": (
         "Clean e-commerce product photo of the object on a pure white seamless background. "
         "Soft diffused studio lighting, natural soft shadow under the product, Amazon listing style, 4k, ultra sharp."
@@ -306,7 +311,6 @@ TEMA_LISTESI = {
         "E-commerce catalog shot of the object on a very light grey to white gradient background. "
         "Soft drop shadow, subtle reflection, minimalistic high-end cosmetics style, centered composition."
     ),
-    # Sosyal medya presetleri
     "📲 Instagram Postu 1080x1350": (
         "Vertical 4:5 ratio (1080x1350) Instagram post of the object. "
         "Modern gradient background, bold soft shadows, high contrast, ready to post layout with focus on the product."
@@ -324,7 +328,6 @@ TEMA_LISTESI = {
         "16:9 ratio YouTube thumbnail style design featuring the object on the right side with bold light background, "
         "strong contrast, cinematic shading and room for title text on the left."
     ),
-    # Sahne / ortamlar
     "🌫 Nötr Gri Fon (Universal)": (
         "Professional product photography of the object on a neutral light grey seamless background. "
         "Soft softbox lighting, gentle vignette, clean catalogue style, 4k."
@@ -383,7 +386,6 @@ TEMA_LISTESI = {
 # ZAMAN & HAVA FONKSİYONLARI
 # ===========================
 def fetch_tr_time() -> datetime:
-    """Önce WorldTimeAPI, hata olursa local Europe/Istanbul."""
     try:
         resp = requests.get(
             "http://worldtimeapi.org/api/timezone/Europe/Istanbul", timeout=5
@@ -435,7 +437,6 @@ def get_time_answer() -> str:
 
 
 def extract_city_from_message(message: str) -> str | None:
-    """Türkçe cümleden şehir adını tahmini çıkarır."""
     msg = message.lower()
     msg = re.sub(r"[^\wçğıöşü\s]", " ", msg)
     tokens = [t for t in msg.split() if t]
@@ -463,7 +464,6 @@ def extract_city_from_message(message: str) -> str | None:
 
 
 def resolve_city_to_coords(city: str, limit: int = 1):
-    """OpenWeather Geocoding API ile şehir → (lat, lon)."""
     if not WEATHER_API_KEY:
         return None
     try:
@@ -802,7 +802,6 @@ def yerel_islem(urun_resmi: Image.Image, islem_tipi: str):
 def sidebar_ui():
     st.sidebar.markdown("### 🧠 ALPTECH AI Panel")
 
-    # Konuşma geçmişi
     st.sidebar.markdown("**Konuşmalarım**")
     sessions = list(st.session_state.chat_sessions.keys())
     if st.sidebar.button("➕ Yeni konuşma"):
@@ -815,12 +814,14 @@ def sidebar_ui():
         ]
         st.session_state.current_session = new_name
         st.session_state.chat_history = st.session_state.chat_sessions[new_name]
-        st.experimental_rerun()
+        st.rerun()
 
     sessions = list(st.session_state.chat_sessions.keys())
     if sessions:
         selected = st.sidebar.selectbox(
-            "Aktif konuşma", sessions, index=sessions.index(st.session_state.current_session)
+            "Aktif konuşma",
+            sessions,
+            index=sessions.index(st.session_state.current_session),
         )
         if selected != st.session_state.current_session:
             st.session_state.chat_sessions[st.session_state.current_session] = (
@@ -828,11 +829,10 @@ def sidebar_ui():
             )
             st.session_state.current_session = selected
             st.session_state.chat_history = st.session_state.chat_sessions[selected]
-            st.experimental_rerun()
+            st.rerun()
 
     st.sidebar.markdown("---")
 
-    # Prompt kütüphanesi
     st.sidebar.markdown("**Hazır Promptlar**")
     prompt_exp = st.sidebar.expander("Metin & Kampanya", expanded=False)
     with prompt_exp:
@@ -867,7 +867,6 @@ def sidebar_ui():
 
     st.sidebar.markdown("---")
 
-    # Analytics
     with st.sidebar.expander("📊 Analytics (demo)", expanded=False):
         a = st.session_state.analytics
         st.write(f"Stüdyo çalıştırma: {a.get('studio_runs', 0)}")
@@ -886,23 +885,34 @@ def sidebar_ui():
 # ===========================
 # HEADER & GENEL UI
 # ===========================
-# Tema seçimi
 col_bosluk, col_tema = st.columns([10, 1])
 with col_tema:
     karanlik_mod = st.toggle("🌙 / ☀️", value=True, key="theme_toggle")
 tema = get_theme(karanlik_mod)
 apply_apple_css(tema)
 
-# Sidebar UI
 sidebar_ui()
 
-# Header
+# Logo + Başlık
 header_left, header_right = st.columns([0.16, 0.84])
 with header_left:
-    try:
-        st.image(LOGO_PATH, use_column_width=True)
-    except Exception:
+    if LOGO_B64:
+        if karanlik_mod:
+            style = (
+                "max-width:160px; width:100%; display:block; margin-bottom:0.3rem;"
+            )
+        else:
+            style = (
+                "max-width:160px; width:100%; display:block; margin-bottom:0.3rem;"
+                "filter: invert(1) drop-shadow(0 0 4px rgba(0,0,0,0.6));"
+            )
+        st.markdown(
+            f"<img src='data:image/png;base64,{LOGO_B64}' style='{style}'>",
+            unsafe_allow_html=True,
+        )
+    else:
         st.markdown("### ALPTECH")
+
 with header_right:
     st.markdown(
         """
@@ -930,7 +940,6 @@ with col_studio:
         st.session_state.sonuc_gorseli = None
         st.rerun()
 
-
 with col_chat:
     if st.button(
         "💬 Sohbet Modu (Genel Asistan)",
@@ -941,7 +950,6 @@ with col_chat:
         st.session_state.app_mode = "💬 Sohbet Modu (Genel Asistan)"
         st.session_state.sonuc_gorseli = None
         st.rerun()
-
 
 st.divider()
 
@@ -997,7 +1005,6 @@ if st.session_state.app_mode == "📸 Stüdyo Modu (Görsel Düzenleme)":
         label_visibility="collapsed",
         key="studio_upload",
     )
-
     kaynak_dosya = uploaded_file
 
     if kaynak_dosya:
@@ -1084,7 +1091,7 @@ if st.session_state.app_mode == "📸 Stüdyo Modu (Görsel Düzenleme)":
                                                     resp.content
                                                 )
                                                 st.session_state.sonuc_format = "PNG"
-                                                st.experimental_rerun()
+                                                st.rerun()
                                             else:
                                                 st.error(
                                                     "AI görseli indirilemedi. Lütfen tekrar dene."
@@ -1115,7 +1122,7 @@ if st.session_state.app_mode == "📸 Stüdyo Modu (Görsel Düzenleme)":
                                     sonuc.save(buf, format=fmt)
                                     st.session_state.sonuc_gorseli = buf.getvalue()
                                     st.session_state.sonuc_format = fmt
-                                    st.experimental_rerun()
+                                    st.rerun()
                             else:
                                 st.warning(
                                     "Lütfen bir hazır tema seç veya kendi sahneni yaz."
@@ -1179,7 +1186,7 @@ if st.session_state.app_mode == "📸 Stüdyo Modu (Görsel Düzenleme)":
                     st.write("")
                     if st.button("🔄 Yeni İşlem Yap"):
                         st.session_state.sonuc_gorseli = None
-                        st.experimental_rerun()
+                        st.rerun()
 
 # ===========================
 # SOHBET MODU
@@ -1192,7 +1199,6 @@ elif st.session_state.app_mode == "💬 Sohbet Modu (Genel Asistan)":
         unsafe_allow_html=True,
     )
 
-    # Chat içi '+' ile upload panel yönetimi
     top_bar = st.container()
     with top_bar:
         col_plus, col_info = st.columns([0.12, 0.88])
@@ -1224,17 +1230,17 @@ elif st.session_state.app_mode == "💬 Sohbet Modu (Genel Asistan)":
                     st.session_state.chat_image = file_bytes
                     st.session_state.show_upload_panel = False
                     inc_stat("uploads")
-                    st.success("Dosya yüklendi. Şimdi bu dosya/görsel hakkında soru sorabilirsin.")
+                    st.success(
+                        "Dosya yüklendi. Şimdi bu dosya/görsel hakkında soru sorabilirsin."
+                    )
                 except Exception as e:
                     st.error("Dosya okunamadı, lütfen tekrar dene.")
                     print("chat upload error:", e)
 
-    # Mesaj geçmişini göster
     for msg in st.session_state.chat_history:
         with st.chat_message(msg["role"]):
             st.write(msg["content"])
 
-    # Pending prompt (sidebar hazır prompt)
     pending_prompt = st.session_state.pending_prompt
     if pending_prompt:
         st.session_state.pending_prompt = None
@@ -1248,12 +1254,13 @@ elif st.session_state.app_mode == "💬 Sohbet Modu (Genel Asistan)":
         with st.chat_message("user"):
             st.write(prompt)
 
-        # Güvenlik filtresi
         mod_msg = moderate_content(prompt)
         if mod_msg is not None:
             with st.chat_message("assistant"):
                 st.write(mod_msg)
-            st.session_state.chat_history.append({"role": "assistant", "content": mod_msg})
+            st.session_state.chat_history.append(
+                {"role": "assistant", "content": mod_msg}
+            )
         else:
             override = custom_identity_interceptor(prompt)
             if override is not None:
@@ -1291,7 +1298,6 @@ elif st.session_state.app_mode == "💬 Sohbet Modu (Genel Asistan)":
                                     {"role": "assistant", "content": cevap}
                                 )
 
-    # Güncel chat'i aktif oturuma kaydet
     st.session_state.chat_sessions[st.session_state.current_session] = (
         st.session_state.chat_history
     )
@@ -1303,5 +1309,3 @@ st.markdown(
     "<div class='custom-footer'>ALPTECH AI Stüdyo © 2025 | Developed by Alper</div>",
     unsafe_allow_html=True,
 )
-
-

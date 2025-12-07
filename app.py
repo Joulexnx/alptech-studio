@@ -939,7 +939,8 @@ with col_chat:
     ):
         st.session_state.app_mode = "💬 Sohbet Modu (Genel Asistan)"
         st.session_state.sonuc_gorseli = None
-        st.experimental_rerun()
+        st.rerun()
+
 
 st.divider()
 
@@ -1301,3 +1302,4 @@ st.markdown(
     "<div class='custom-footer'>ALPTECH AI Stüdyo © 2025 | Developed by Alper</div>",
     unsafe_allow_html=True,
 )
+

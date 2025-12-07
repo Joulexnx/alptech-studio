@@ -3,10 +3,13 @@ File: app.py
 ALPTECH AI Stüdyo — Apple-style, e-ticaret odaklı temalar + logo
 - WorldTimeAPI ile gerçek TR saati
 - OpenWeather Geocoding + Current Weather + 7 günlük Forecast (One Call 3.0)
+- Chat'te: sesle yazma (Web Speech API), fotoğraf/dosya ekle, kamera ile çek
 """
 
 from __future__ import annotations
 
+import base64
+import re
 import traceback
 from datetime import datetime
 from io import BytesIO
@@ -21,9 +24,6 @@ from rembg import remove
 # ----------------------------
 # GÜVENLİ AYARLAR & KONFIG
 # ----------------------------
-# NOT: OPENAI_API_KEY'i st.secrets içine kendin eklemelisin.
-# Weather için istersen secrets'e yaz, yoksa aşağıdaki fallback key kullanılır.
-
 if "OPENAI_API_KEY" in st.secrets:
     SABIT_API_KEY = st.secrets["OPENAI_API_KEY"]
 else:
@@ -32,11 +32,10 @@ else:
 
 DEFAULT_MODEL = st.secrets.get("OPENAI_MODEL", "gpt-4o-mini")
 
-# Kullanıcının verdiği key default olsun, secrets varsa onu kullan
+# Weather: secrets varsa onu, yoksa kullanıcıdan gelen key'i kullan
 WEATHER_API_KEY = st.secrets.get("WEATHER_API_KEY", "5f9ee20a060a62ba9cb79d4a048395d9")
 WEATHER_DEFAULT_CITY = st.secrets.get("WEATHER_DEFAULT_CITY", "İstanbul")
 
-# Logo dosyası (app.py ile aynı klasörde olmalı)
 LOGO_PATH = "ALPTECHAI.png"
 
 st.set_page_config(
@@ -134,17 +133,23 @@ def apply_apple_css(tema: dict):
         color: {tema['text']} !important;
     }}
 
-    /* Chat input görünür olsun (koyu mod fix) */
+    /* Chat input görünür olsun (koyu mod fix, mobil dahil) */
     [data-testid="stChatInput"] textarea,
     [data-testid="stChatInput"] input {{
         background: {tema['input_bg']} !important;
         color: {tema['text']} !important;
         border-radius: 999px !important;
+        border: 1px solid {tema['border']} !important;
     }}
     [data-testid="stChatInput"] textarea::placeholder,
     [data-testid="stChatInput"] input::placeholder {{
         color: {tema['subtext']} !important;
         opacity: 1 !important;
+    }}
+
+    /* Genel güvenlik: her textarea/input tema rengine uyumlu */
+    textarea, input[type="text"] {{
+        color: {tema['text']} !important;
     }}
 
     .custom-footer {{
@@ -156,6 +161,68 @@ def apply_apple_css(tema: dict):
     }}
     </style>
     """,
+        unsafe_allow_html=True,
+    )
+
+
+def inject_voice_js():
+    """Web Speech API ile stChatInput içine sesle yazma."""
+    st.markdown(
+        """
+<script>
+(function() {
+  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SpeechRecognition) { return; }
+
+  function addMicButton() {
+    const root = window.parent.document.querySelector('[data-testid="stChatInput"]');
+    if (!root) return;
+    if (root.querySelector('#alptech-mic-btn')) return;
+
+    const textarea = root.querySelector('textarea');
+    if (!textarea) return;
+
+    const btn = document.createElement('button');
+    btn.id = 'alptech-mic-btn';
+    btn.innerText = '🎤';
+    btn.title = 'Sesle yaz (tarayıcı mikrofon izni ister)';
+    btn.style.marginLeft = '8px';
+    btn.style.borderRadius = '999px';
+    btn.style.border = 'none';
+    btn.style.cursor = 'pointer';
+    btn.style.padding = '4px 10px';
+    btn.style.background = '#0a84ff';
+    btn.style.color = 'white';
+    btn.style.fontSize = '16px';
+
+    const rec = new SpeechRecognition();
+    rec.lang = 'tr-TR';
+    rec.interimResults = false;
+    rec.maxAlternatives = 1;
+
+    rec.onresult = (event) => {
+      const text = event.results[0][0].transcript;
+      const current = textarea.value;
+      textarea.value = current ? (current + ' ' + text) : text;
+      textarea.dispatchEvent(new Event('input', {bubbles: true}));
+    };
+
+    rec.onerror = (event) => {
+      console.log('Speech recognition error', event);
+    };
+
+    btn.onclick = (e) => {
+      e.preventDefault();
+      try { rec.start(); } catch (err) { console.log(err); }
+    };
+
+    root.appendChild(btn);
+  }
+
+  setInterval(addMicButton, 1500);
+})();
+</script>
+        """,
         unsafe_allow_html=True,
     )
 
@@ -172,6 +239,8 @@ if "chat_history" not in st.session_state:
     ]
 if "app_mode" not in st.session_state:
     st.session_state.app_mode = "📸 Stüdyo Modu (Görsel Düzenleme)"
+if "chat_image" not in st.session_state:
+    st.session_state.chat_image = None  # son eklenen ürün görseli (chat için)
 
 # ----------------------------
 # E-TİCARET ODAKLI TEMA LİSTESİ
@@ -297,14 +366,47 @@ def get_time_answer() -> str:
     return f"Güncel sisteme göre tarih {tarih_str}. Şu an saat {saat_str}."
 
 
+def extract_city_from_message(message: str) -> str | None:
+    """
+    Türkçe cümleden şehir adını tahmini çıkarır.
+    Örn: 'ankara da hava nasıl' -> 'ankara'
+    """
+    msg = message.lower()
+    msg = re.sub(r"[^\wçğıöşü\s]", " ", msg)
+    tokens = [t for t in msg.split() if t]
+
+    # 'hava' kelimesinden önceki kelime adaydır
+    if "hava" in tokens:
+        idx = tokens.index("hava")
+        if idx >= 1:
+            candidate = tokens[idx - 1]
+        else:
+            candidate = tokens[0]
+    elif tokens:
+        candidate = tokens[0]
+    else:
+        return None
+
+    for suf in ["'da", "'de", "'ta", "'te", "da", "de", "ta", "te"]:
+        if candidate.endswith(suf) and len(candidate) > len(suf) + 1:
+            candidate = candidate[: -len(suf)]
+            break
+
+    candidate = candidate.strip()
+    if not candidate:
+        return None
+    return candidate
+
+
 def resolve_city_to_coords(city: str, limit: int = 1):
-    """OpenWeather Geocoding API ile şehir → (lat, lon)."""
+    """OpenWeather Geocoding API ile şehir → (lat, lon). Sadece TR içinde arar."""
     if not WEATHER_API_KEY:
         return None
     try:
+        q = f"{city},TR"
         url = (
             "http://api.openweathermap.org/geo/1.0/direct"
-            f"?q={city}&limit={limit}&appid={WEATHER_API_KEY}"
+            f"?q={q}&limit={limit}&appid={WEATHER_API_KEY}"
         )
         resp = requests.get(url, timeout=10)
         if resp.status_code != 200:
@@ -323,8 +425,8 @@ def get_weather_answer(location: str | None = None) -> str:
     if not WEATHER_API_KEY:
         return "Şu an hava durumu bilgisini veremiyorum; sisteme hava durumu API anahtarı ekli değil. 🌤️"
 
-    sehir = location or WEATHER_DEFAULT_CITY or "İstanbul"
-
+    city_raw = location or WEATHER_DEFAULT_CITY or "İstanbul"
+    sehir = city_raw.strip()
     coords = resolve_city_to_coords(sehir)
     try:
         if coords:
@@ -336,7 +438,7 @@ def get_weather_answer(location: str | None = None) -> str:
         else:
             url = (
                 "https://api.openweathermap.org/data/2.5/weather"
-                f"?q={sehir}&appid={WEATHER_API_KEY}&units=metric&lang=tr"
+                f"?q={sehir},TR&appid={WEATHER_API_KEY}&units=metric&lang=tr"
             )
 
         resp = requests.get(url, timeout=10)
@@ -350,8 +452,9 @@ def get_weather_answer(location: str | None = None) -> str:
         nem = data["main"]["humidity"]
         ruzgar = data["wind"]["speed"]
 
+        sehir_gorunum = sehir.title()
         return (
-            f"📍 **{sehir}**\n"
+            f"📍 **{sehir_gorunum}**\n"
             f"🌡️ Sıcaklık: **{derece:.1f}°C** (Hissedilen **{his:.1f}°C**)\n"
             f"☁️ Hava: **{durum}**\n"
             f"💧 Nem: **%{nem}**\n"
@@ -366,7 +469,8 @@ def get_weather_forecast_answer(location: str | None = None, days: int = 7) -> s
     if not WEATHER_API_KEY:
         return "Şu an hava durumu bilgisini veremiyorum; sisteme hava durumu API anahtarı ekli değil. 🌤️"
 
-    sehir = location or WEATHER_DEFAULT_CITY or "İstanbul"
+    city_raw = location or WEATHER_DEFAULT_CITY or "İstanbul"
+    sehir = city_raw.strip()
     coords = resolve_city_to_coords(sehir)
     if not coords:
         return f"{sehir} için konum bilgisi alınamadı; lütfen farklı bir şehir adı dene."
@@ -388,7 +492,8 @@ def get_weather_forecast_answer(location: str | None = None, days: int = 7) -> s
             return f"{sehir} için günlük tahmin verisi bulunamadı."
 
         gun_sayisi = min(days, len(daily))
-        lines = [f"📍 **{sehir} için 7 günlük hava tahmini:**"]
+        sehir_gorunum = sehir.title()
+        lines = [f"📍 **{sehir_gorunum} için 7 günlük hava tahmini:**"]
         for i in range(gun_sayisi):
             d = daily[i]
             dt = datetime.fromtimestamp(d["dt"], ZoneInfo("Europe/Istanbul"))
@@ -437,22 +542,12 @@ def custom_utility_interceptor(user_message: str) -> str | None:
         return get_time_answer()
 
     if "haftalık hava" in msg or "7 günlük hava" in msg or "7 gunluk hava" in msg:
-        known_cities = ["istanbul", "ankara", "izmir", "bursa", "antalya", "adana"]
-        city_found = None
-        for c in known_cities:
-            if c in msg:
-                city_found = c.capitalize()
-                break
-        return get_weather_forecast_answer(city_found)
+        city = extract_city_from_message(user_message)
+        return get_weather_forecast_answer(city)
 
     if "hava" in msg or "hava durumu" in msg or "hava nasıl" in msg:
-        known_cities = ["istanbul", "ankara", "izmir", "bursa", "antalya", "adana"]
-        city_found = None
-        for c in known_cities:
-            if c in msg:
-                city_found = c.capitalize()
-                break
-        return get_weather_answer(city_found)
+        city = extract_city_from_message(user_message)
+        return get_weather_answer(city)
 
     return None
 
@@ -482,9 +577,30 @@ def normal_sohbet(client, chat_history):
     system_talimati = build_system_talimati()
     max_context = 40
     messages = [{"role": "system", "content": system_talimati}]
-    for msg in st.session_state.chat_history[-max_context:]:
+    history_slice = st.session_state.chat_history[-max_context:]
+
+    for i, msg in enumerate(history_slice):
         api_role = "user" if msg["role"] == "user" else "assistant"
-        messages.append({"role": api_role, "content": msg["content"]})
+        if api_role == "user":
+            if (
+                i == len(history_slice) - 1
+                and st.session_state.get("chat_image") is not None
+            ):
+                img_bytes = st.session_state.chat_image
+                b64 = base64.b64encode(img_bytes).decode("utf-8")
+                content = [
+                    {"type": "text", "text": msg["content"]},
+                    {
+                        "type": "image_url",
+                        "image_url": {"url": f"data:image/png;base64,{b64}"},
+                    },
+                ]
+                messages.append({"role": "user", "content": content})
+            else:
+                messages.append({"role": "user", "content": msg["content"]})
+        else:
+            messages.append({"role": "assistant", "content": msg["content"]})
+
     model_to_use = st.secrets.get("OPENAI_MODEL", DEFAULT_MODEL)
     try:
         response = client.chat.completions.create(
@@ -654,7 +770,6 @@ st.divider()
 # STÜDYO MODU
 # ----------------------------
 if st.session_state.app_mode == "📸 Stüdyo Modu (Görsel Düzenleme)":
-    # Üstte açıklama kartları
     c1, c2, c3 = st.columns(3)
     with c1:
         st.markdown(
@@ -889,10 +1004,33 @@ if st.session_state.app_mode == "📸 Stüdyo Modu (Görsel Düzenleme)":
 # SOHBET MODU
 # ----------------------------
 elif st.session_state.app_mode == "💬 Sohbet Modu (Genel Asistan)":
+    inject_voice_js()
+
     st.markdown(
         '<div class="container-header">💬 ALPTECH AI Sohbet</div>',
         unsafe_allow_html=True,
     )
+
+    # "+" alanı: fotoğraf/dosya ekle + kamera ile çek
+    with st.container():
+        col_fu, col_cam = st.columns(2)
+        with col_fu:
+            chat_upload = st.file_uploader(
+                "➕ Fotoğraf / Dosya ekle",
+                type=["png", "jpg", "jpeg", "webp"],
+                key="chat_file",
+            )
+            if chat_upload is not None:
+                st.session_state.chat_image = chat_upload.read()
+        with col_cam:
+            chat_cam = st.camera_input("📷 Kamera ile çek", key="chat_camera")
+            if chat_cam is not None:
+                st.session_state.chat_image = chat_cam.getvalue()
+
+    if st.session_state.chat_image:
+        st.caption(
+            "📎 Bir ürün görseli eklendi. Yeni sorularında bu görsele göre açıklama isteyebilirsin."
+        )
 
     qc1, qc2, qc3 = st.columns([1, 1, 1])
     quick_prompt = None

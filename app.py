@@ -928,7 +928,8 @@ with col_studio:
     ):
         st.session_state.app_mode = "📸 Stüdyo Modu (Görsel Düzenleme)"
         st.session_state.sonuc_gorseli = None
-        st.experimental_rerun()
+        st.rerun()
+
 
 with col_chat:
     if st.button(
@@ -1302,4 +1303,5 @@ st.markdown(
     "<div class='custom-footer'>ALPTECH AI Stüdyo © 2025 | Developed by Alper</div>",
     unsafe_allow_html=True,
 )
+
 

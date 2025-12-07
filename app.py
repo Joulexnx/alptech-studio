@@ -1,13 +1,15 @@
 """
 File: app.py
-ALPTECH AI Stüdyo — v3.1
+ALPTECH AI Stüdyo — v3.3 (GPT-5.1 + E-ticaret Uzmanı, Tetiklemeli Mod)
+- GPT-5.1 entegrasyonu (OPENAI_MODEL yoksa varsayılan: gpt-5.1)
 - Apple-style UI
 - Studio + Chat modları
-- TR gerçek saat (WorldTimeAPI fallback local)
+- TR gerçek saat (WorldTimeAPI, fallback local)
 - OpenWeather: Geo + Current + 7-günlük tahmin (TR şehirleri)
-- ALPTECH AI kimlik, güvenlik filtresi
+- ALPTECH AI kimliği, güvenlik filtresi
 - Chat içinde: '+' ile dosya/görsel yükleme, 🎤 sesle yaz (Web Speech API)
-- Sol sidebar: konuşma geçmişi, prompt kütüphanesi, basit analytics
+- Sol sidebar: konuşma geçmişi, hazır prompt kütüphanesi, basit analytics
+- E-ticaret profesyonel sistem talimatı (TETİKLEMELİ MOD)
 """
 
 from __future__ import annotations
@@ -36,7 +38,8 @@ else:
         "⚠️ OPENAI_API_KEY tanımlı değil. Sohbet ve AI sahne düzenleme özellikleri devre dışı."
     )
 
-DEFAULT_MODEL = st.secrets.get("OPENAI_MODEL", "gpt-4o-mini")
+# GPT-5.1 varsayılan; secrets içinde OPENAI_MODEL varsa onu kullanır.
+DEFAULT_MODEL = st.secrets.get("OPENAI_MODEL", "gpt-5.1")
 
 # OpenWeather
 WEATHER_API_KEY = st.secrets.get(
@@ -44,7 +47,7 @@ WEATHER_API_KEY = st.secrets.get(
 )
 WEATHER_DEFAULT_CITY = st.secrets.get("WEATHER_DEFAULT_CITY", "İstanbul")
 
-# Logo dosya yolu (uygulama dizininde olmalı)
+# Logo dosya yolu (uygulama dizininde)
 LOGO_PATH = "ALPTECHAI.png"
 
 # Logo base64
@@ -155,7 +158,7 @@ def apply_apple_css(tema: dict):
         color: {tema['text']} !important;
     }}
 
-    /* Chat input text görünür (koyu mod mobil dahil) */
+    /* Chat input (koyu mod mobil dahil) */
     [data-testid="stChatInput"] textarea,
     [data-testid="stChatInput"] input {{
         background: {tema['input_bg']} !important;
@@ -187,7 +190,6 @@ def apply_apple_css(tema: dict):
 
 
 def inject_voice_js():
-    """Web Speech API ile stChatInput içine '🎤' butonu ekler."""
     st.markdown(
         """
 <script>
@@ -263,7 +265,10 @@ if "chat_history" not in st.session_state:
     st.session_state.chat_history = [
         {"role": "assistant", "content": "Merhaba! Hangi modu kullanmak istersin?"}
     ]
-if "chat_sessions" in st.session_state and "Oturum 1" not in st.session_state.chat_sessions:
+if (
+    "chat_sessions" in st.session_state
+    and "Oturum 1" not in st.session_state.chat_sessions
+):
     st.session_state.chat_sessions["Oturum 1"] = st.session_state.chat_history
 
 if "chat_image" not in st.session_state:
@@ -594,7 +599,7 @@ def moderate_content(text: str) -> str | None:
         if re.search(pat, text):
             return (
                 "Bu isteğe doğrudan yardımcı olamam. "
-                "Ancak istediğin konuyu daha güvenli ve olumlu bir şekilde ele almak istersen beraber bakabiliriz. 🙂"
+                "Ancak konuyu daha güvenli ve olumlu bir şekilde ele almak istersen birlikte uyarlayabiliriz. 🙂"
             )
     return None
 
@@ -617,8 +622,7 @@ def custom_identity_interceptor(user_message: str) -> str | None:
     if any(t in msg for t in triggers):
         return (
             "Beni **ALPTECH AI** ekibi geliştirdi 🚀\n\n"
-            "Görevim; senin için akıllı bir stüdyo asistanı olmak, ürün görsellerini profesyonelleştirmek "
-            "ve metin tarafında da markanı güçlendirmek. Her zaman yanındayım. 🙂"
+            "E-ticaret, ürün metinleri ve görsel stüdyo konularında profesyonel bir asistan olarak çalışıyorum."
         )
     return None
 
@@ -639,23 +643,88 @@ def custom_utility_interceptor(user_message: str) -> str | None:
 
     return None
 
-
+# ===========================
+# GPT-5.1 E-TİCARET SİSTEM TALİMATI (TETİKLEMELİ MOD)
+# ===========================
 def build_system_talimati():
+    """
+    ALPTECH AI — GPT-5.1 tabanlı profesyonel e-ticaret asistan perso­nası.
+    Tetiklemeli mod: sadece kullanıcı açıkça e-ticaret içeriği istediğinde tam paket üret.
+    """
     zaman_bilgisi = turkce_zaman_getir()
     return f"""
-    Senin adın **ALPTECH AI**.
-    ALPTECH AI ekibi tarafından geliştirilen, modern ve profesyonel bir yapay zeka asistansın.
+Sen **ALPTECH AI** adlı üst seviye profesyonel bir e-ticaret yapay zekâ asistanısın.
+Arka planda gelişmiş modern bir yapay zekâ modeli kullanırsın; bunu kullanıcıya anlatmazsın.
+Asla OpenAI, ChatGPT, GPT-4, GPT-5 gibi model isimleri kullanmazsın.
+Kendini her zaman "ALPTECH AI ekibi tarafından geliştirilen profesyonel e-ticaret asistanı" olarak tanıtırsın.
 
-    Odak noktaların:
-    - Ürün görselleri üzerinde çalışma (arka plan kaldırma, sahne oluşturma, e-ticaret görselleri).
-    - E-ticaret odaklı metinler yazma (ürün açıklaması, kampanya metni, sosyal medya postu).
-    - Genel sorularda açıklayıcı, sade cevaplar verme.
+Genel görevlerin:
+- Ürün, marka, mağaza ve pazarlama ile ilgili sorularda net, kurumsal ve pratik cevaplar vermek.
+- Kullanıcı isterse detaylı e-ticaret içeriği üretmek.
+- Kullanıcının seviyesine göre sade ama profesyonel açıklamalar yapmak.
 
-    Her zaman kendini "ALPTECH AI" olarak tanıt.
-    Seni kimin geliştirdiği sorulduğunda: "ALPTECH AI ekibi" de.
-    Mümkün olduğunca kısa ama net cevap ver; kullanıcı isterse detaya gir.
-    Sistem notu: Bu yanıtlar {zaman_bilgisi} tarihinde oluşturuluyor.
-    """
+ÇALIŞMA MODLARIN
+────────────────────────────────
+1) NORMAL MOD (varsayılan):
+- Kullanıcı sana genel bir soru sorduğunda (e-ticaret dışı veya kısa cevap bekleyen konular):
+  - Sadece sorulanı yanıtla.
+  - Kısa veya orta uzunlukta, net ve profesyonel bir cevap ver.
+  - Aşırı uzun, gereksiz detaylı ve paketli cevaplar verme.
+  - Aşağıdaki e-ticaret içerik paketini otomatik olarak ÇALIŞTIRMA.
+
+2) E-TİCARET İÇERİK PAKETİ MODU (tetiklemeli):
+- Kullanıcı açıkça aşağıdakilere benzer niyet ifade ederse:
+  - "Ürün açıklaması hazırla", "E-ticaret için ürün metni yaz"
+  - "SEO uyumlu açıklama", "Trendyol/Hepsiburada/Amazon için açıklama"
+  - "Ürün faydalarını yaz", "kutu içeriği", "CTA yaz", "USP çıkar"
+  - "SEO anahtar kelime", "etiket önerisi", "Trendyol etiketi"
+  - "Fiyatlandırma önerisi", "fiyat psikolojisi", "fiyat stratejisi"
+  - "Yorum analizi yap", "müşteri yorumlarını analiz et"
+  - "Sosyal medya reklam metni yaz", "Instagram postu açıklaması"
+  - "Marka hikâyesi yaz", "marka hikayesi"
+  - "tam paket", "full e-ticaret paketi", "hepsini çıkar"
+- Bu durumda **E-TİCARET PAKETİ MODU**nu aktif et ve aşağıdaki tam paketi üret.
+
+E-TİCARET İÇERİK PAKETİ (yalnızca tetiklendiğinde)
+────────────────────────────────
+Bir ürün veya hizmet için bu mod aktif olduğunda mümkünse şu bölümleri sırayla üret:
+
+1️⃣ SEO uyumlu profesyonel ürün açıklaması  
+2️⃣ ⭐ Ürünün öne çıkan 5 faydası  
+3️⃣ 📦 Kutu içeriği  
+4️⃣ 🎯 Hedef kitle  
+5️⃣ 🛠 Kullanım önerileri  
+6️⃣ 🛒 Satın almaya yönlendiren CTA  
+7️⃣ USP — ürünün benzersiz değer önerisi  
+8️⃣ SEO için 10 anahtar kelime  
+9️⃣ Trendyol, Amazon ve Hepsiburada için kısa açıklama önerileri  
+🔟 Markaya uygun tek cümlelik mağaza sloganı  
+1️⃣1️⃣ A/B testli iki farklı başlık (Title A & Title B)  
+1️⃣2️⃣ Trendyol etiket önerileri (yüksek arama hacmine göre)  
+1️⃣3️⃣ Fiyat psikolojisi optimizasyon önerisi  
+1️⃣4️⃣ Varyant analizi: renk, beden, kapasite gibi varyantları listeleme (bilgi varsa)  
+1️⃣5️⃣ Müşteri yorum analizi: memnuniyet ve şikâyet temaları, aksiyon önerileri  
+1️⃣6️⃣ Sosyal medya reklam metinleri: özellikle Instagram/Trendyol için kısa ve etkili kopyalar  
+1️⃣7️⃣ Mağaza için kısa premium marka hikâyesi (kullanıcı isterse genişletilebilir)
+
+Uzmanlık alanların:
+- Ürün açıklaması, fayda analizi, varyant çıkarımı
+- Kutu içeriği ve hedef kitle tanımı
+- Kullanım önerileri ve CTA kurgusu
+- USP, SEO ve etiket/keyword önerileri
+- Fiyat psikolojisi ve fiyatlandırma stratejisi
+- Yorum analizi (memnuniyet & şikayet temaları)
+- Sosyal medya reklam metinleri
+- Marka hikayesi ve marka tonu
+
+Dil & Ton kuralları:
+- Her zaman profesyonel, kurumsal ve güven verici bir üslup kullan.
+- Abartısız, net ve satış odaklı ol.
+- Bilgiyi mümkün olduğunca başlıklar ve madde işaretleriyle yapılandır.
+- Kullanıcı e-ticaret dışı bir soru sorarsa normal, kısa/orta cevap ver; paket moduna ZORLAMA.
+
+Sistem zamanı: {zaman_bilgisi}
+"""
 
 
 def normal_sohbet(client: OpenAI):
@@ -691,8 +760,8 @@ def normal_sohbet(client: OpenAI):
         response = client.chat.completions.create(
             model=model_to_use,
             messages=messages,
-            temperature=0.2,
-            max_tokens=1200,
+            temperature=0.3,
+            max_tokens=1400,
         )
         try:
             return response.choices[0].message.content
@@ -836,15 +905,16 @@ def sidebar_ui():
     st.sidebar.markdown("**Hazır Promptlar**")
     prompt_exp = st.sidebar.expander("Metin & Kampanya", expanded=False)
     with prompt_exp:
-        if st.button("🛍 Ürün açıklaması oluştur", key="p_prod_desc"):
+        if st.button("🛍 Ürün açıklaması paketi", key="p_prod_desc"):
             st.session_state.pending_prompt = (
-                "Bir e-ticaret ürünü için SEO uyumlu, ikna edici bir ürün açıklaması "
-                "yazar mısın? Özellikler: [ÜRÜN ADI], [ÖNE ÇIKAN ÖZELLİKLER], [KULLANIM ALANLARI]."
+                "Bir e-ticaret ürünü için tam e-ticaret paketi üret: "
+                "ürün açıklaması, 5 fayda, hedef kitle, kutu içeriği, CTA, USP, SEO keyword, "
+                "Trendyol/Amazon/Hepsiburada kısa açıklamalar, etiketler, marka sloganı ve fiyat önerisi."
             )
         if st.button("🎉 Kampanya / İndirim duyurusu", key="p_campaign"):
             st.session_state.pending_prompt = (
-                "Markam için % indirim içeren kısa bir kampanya duyurusu metni yazar mısın? "
-                "Ton: samimi, enerjik, aksiyona çağıran."
+                "Markam için indirim kampanyası duyurusu yazar mısın? "
+                "Kısa, kurumsal ama sıcak bir dille; CTA içersin."
             )
         if st.button("📢 Eğitim / Etkinlik duyurusu", key="p_event"):
             st.session_state.pending_prompt = (
@@ -856,8 +926,8 @@ def sidebar_ui():
     with prompt_img:
         if st.button("📲 Instagram post tasarım fikri", key="p_ig_post"):
             st.session_state.pending_prompt = (
-                "Bir ürün için Instagram post tasarım fikri üret. Arka plan, renk paleti, "
-                "tipografi ve çekim açısı önerisi içersin."
+                "Bir ürün için Instagram post tasarım fikri üret. "
+                "Arka plan, renk paleti, tipografi ve çekim açısı önerisi içersin."
             )
         if st.button("🎯 Reklam kreatif fikirleri", key="p_ad_ideas"):
             st.session_state.pending_prompt = (
@@ -1309,4 +1379,3 @@ st.markdown(
     "<div class='custom-footer'>ALPTECH AI Stüdyo © 2025 | Developed by Alper</div>",
     unsafe_allow_html=True,
 )
-

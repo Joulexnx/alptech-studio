@@ -1310,30 +1310,42 @@ elif st.session_state.app_mode == "💬 Sohbet Modu (Genel Asistan)":
         unsafe_allow_html=True,
     )
 
-    top_bar = st.container()
-    with top_bar:
+    # 1) Önce eski mesajlar gösteriliyor
+    for msg in st.session_state.chat_history:
+        with st.chat_message(msg["role"]):
+            st.write(msg["content"])
+
+    st.write("")  # küçük boşluk
+
+    # 2) Mesaj kutusunun hemen üstünde: + butonu + bilgi metni + uploader
+    bottom_bar = st.container()
+    with bottom_bar:
         col_plus, col_info = st.columns([0.12, 0.88])
+
+        # SOL: + butonu (mesaj alanının soluna hizalı)
         with col_plus:
-            if st.button("➕", key="chat_plus", help="Dosya / görsel ekle"):
+            if st.button("➕", key="chat_plus_bottom", help="Dosya / görsel ekle"):
                 st.session_state.show_upload_panel = (
                     not st.session_state.show_upload_panel
                 )
+
+        # SAĞ: bilgilendirme yazısı
         with col_info:
             if st.session_state.chat_image:
                 st.caption(
-                    "📎 Bir ürün görseli eklendi. Yeni sorularında bu görsele göre açıklama isteyebilirsin."
+                    "📎 Bir ürün görseli yüklü. Yeni mesajlarında bu görsele göre açıklama isteyebilirsin."
                 )
             else:
                 st.caption(
-                    "İstersen '+' ile ürün görseli ekleyip mağaza açıklaması, kampanya metni vb. yazdırabilirsin."
+                    "İstersen alttaki '+' ile ürün görseli yükleyip mağaza açıklaması, kampanya metni vb. yazdırabilirsin."
                 )
 
-    if st.session_state.show_upload_panel:
-        with st.expander("📎 Dosya / Görsel yükle", expanded=True):
+        # '+' açıldığında hemen altına uploader geliyor
+        if st.session_state.show_upload_panel:
             chat_upload = st.file_uploader(
                 "Görsel veya dosya yükle",
                 type=["png", "jpg", "jpeg", "webp", "pdf", "txt"],
-                key="chat_upload",
+                key="chat_upload_bottom",
             )
             if chat_upload is not None:
                 try:
@@ -1348,10 +1360,7 @@ elif st.session_state.app_mode == "💬 Sohbet Modu (Genel Asistan)":
                     st.error("Dosya okunamadı, lütfen tekrar dene.")
                     print("chat upload error:", e)
 
-    for msg in st.session_state.chat_history:
-        with st.chat_message(msg["role"]):
-            st.write(msg["content"])
-
+    # 3) Chat input (en altta, kendi yerinde duruyor)
     pending_prompt = st.session_state.pending_prompt
     if pending_prompt:
         st.session_state.pending_prompt = None
@@ -1409,9 +1418,11 @@ elif st.session_state.app_mode == "💬 Sohbet Modu (Genel Asistan)":
                                     {"role": "assistant", "content": cevap}
                                 )
 
+    # 4) Oturumu güncel tut
     st.session_state.chat_sessions[st.session_state.current_session] = (
         st.session_state.chat_history
     )
+
 
 # ===========================
 # FOOTER
@@ -1420,4 +1431,5 @@ st.markdown(
     "<div class='custom-footer'>ALPTECH AI Stüdyo © 2025 | Developed by Alper</div>",
     unsafe_allow_html=True,
 )
+
 

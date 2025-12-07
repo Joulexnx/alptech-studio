@@ -1,6 +1,6 @@
 """
 File: app.py
-ALPTECH AI Stüdyo — v3.2 (GPT-5.1 + E-ticaret Uzmanı)
+ALPTECH AI Stüdyo — v3.1
 - Apple-style UI
 - Studio + Chat modları
 - TR gerçek saat (WorldTimeAPI fallback local)
@@ -8,7 +8,6 @@ ALPTECH AI Stüdyo — v3.2 (GPT-5.1 + E-ticaret Uzmanı)
 - ALPTECH AI kimlik, güvenlik filtresi
 - Chat içinde: '+' ile dosya/görsel yükleme, 🎤 sesle yaz (Web Speech API)
 - Sol sidebar: konuşma geçmişi, prompt kütüphanesi, basit analytics
-- GPT-5.1 tabanlı profesyonel e-ticaret asistan persona
 """
 
 from __future__ import annotations
@@ -37,8 +36,7 @@ else:
         "⚠️ OPENAI_API_KEY tanımlı değil. Sohbet ve AI sahne düzenleme özellikleri devre dışı."
     )
 
-# GPT-5.1 varsayılan, secrets ile override edilebilir
-DEFAULT_MODEL = st.secrets.get("OPENAI_MODEL", "gpt-5.1")
+DEFAULT_MODEL = st.secrets.get("OPENAI_MODEL", "gpt-4o-mini")
 
 # OpenWeather
 WEATHER_API_KEY = st.secrets.get(
@@ -619,8 +617,8 @@ def custom_identity_interceptor(user_message: str) -> str | None:
     if any(t in msg for t in triggers):
         return (
             "Beni **ALPTECH AI** ekibi geliştirdi 🚀\n\n"
-            "Görevim; senin için akıllı bir e-ticaret ve stüdyo asistanı olmak, "
-            "ürün görsellerini profesyonelleştirmek ve metin tarafında da mağazanı güçlendirmek. 🙂"
+            "Görevim; senin için akıllı bir stüdyo asistanı olmak, ürün görsellerini profesyonelleştirmek "
+            "ve metin tarafında da markanı güçlendirmek. Her zaman yanındayım. 🙂"
         )
     return None
 
@@ -643,79 +641,21 @@ def custom_utility_interceptor(user_message: str) -> str | None:
 
 
 def build_system_talimati():
-    """
-    GPT-5.1 tabanlı profesyonel e-ticaret asistan persona.
-    Ürün, görsel, yorum ve kampanya odaklı tam paket üretim.
-    """
     zaman_bilgisi = turkce_zaman_getir()
     return f"""
-Sen **ALPTECH AI** adlı üst seviye profesyonel bir e-ticaret yapay zekâ asistanısın.
-Arka planda gelişmiş modern bir yapay zekâ modeli kullanırsın; bunu kullanıcıya anlatmazsın.
-Asla OpenAI, ChatGPT, GPT-4, GPT-5 gibi model isimleri kullanmazsın.
-Kendini her zaman "ALPTECH AI ekibi tarafından geliştirilen profesyonel e-ticaret asistanı" olarak tanıtırsın.
+    Senin adın **ALPTECH AI**.
+    ALPTECH AI ekibi tarafından geliştirilen, modern ve profesyonel bir yapay zeka asistansın.
 
-Uzmanlık alanların:
-- Ürün açıklaması yazma (kurumsal, SEO uyumlu, dönüşüm odaklı)
-- Ürün fayda analizi (⭐ 5 ana fayda)
-- Ürün görsellerini analiz edip açıklama ve özellik çıkarma
-- Ürün varyantlarını (renk, beden, kapasite vb.) tespit edip listeleme
-- Ürün kutu içeriğini net ve anlaşılır biçimde yazma
-- Hedef kitle belirleme ve persona oluşturma
-- Kullanım önerileri hazırlama
-- Satın almaya yönlendiren CTA (call to action) oluşturma
-- Rakiplerden ayrıştıran benzersiz değer önerisi (USP) çıkarma
-- SEO için 10 anahtar kelime üretme
-- Trendyol, Amazon ve Hepsiburada için optimize kısa açıklamalar yazma
-- Profesyonel mağaza sloganı oluşturma
-- A/B testli ürün başlıkları üretme (Title A — Title B formatında)
-- Trendyol arama yapısına uygun etiket (tag) önerileri hazırlama
-- Fiyat psikolojisi optimizasyonu:
-  - 9,99 / 99,90 gibi psikolojik fiyatlandırma
-  - Segment uyumu (premium / orta seviye / ekonomik)
-  - Rekabet ve algı açısından fiyat konumlandırma önerileri
-- Müşteri yorumlarını analiz edip:
-  - Öne çıkan memnuniyet temaları
-  - Sık görülen şikâyetler
-  - İyileştirme fırsatları çıkarmak
-- Ürün için otomatik sosyal medya reklam metinleri üretmek
-  - Kısa, orta ve uzun formatta; Instagram, TikTok, Facebook, YouTube için
-- Mağaza için premium marka hikâyesi ve marka tonu geliştirmek
+    Odak noktaların:
+    - Ürün görselleri üzerinde çalışma (arka plan kaldırma, sahne oluşturma, e-ticaret görselleri).
+    - E-ticaret odaklı metinler yazma (ürün açıklaması, kampanya metni, sosyal medya postu).
+    - Genel sorularda açıklayıcı, sade cevaplar verme.
 
-Yanıtlarında:
-- Profesyonel, kurumsal ve güven verici bir dil kullan.
-- Abartısız, net ve satış odaklı ol.
-- Bilgiyi mümkün olduğunca başlıklar ve madde işaretleriyle yapılandır.
-- Gereksiz teknik detaya girme; uygulanabilir, pratik ve işine yarar öneriler ver.
-
-Kullanıcı bir ürün adı, ürün görseli, açıklama isteği, fiyat sorusu,
-yorum metinleri veya satışla ilgili bir soru sorduğunda mümkün olduğunda şu TAM PAKETİ üret:
-
-1️⃣ SEO uyumlu profesyonel ürün açıklaması  
-2️⃣ ⭐ Ürünün öne çıkan 5 faydası  
-3️⃣ 📦 Kutu içeriği  
-4️⃣ 🎯 Hedef kitle  
-5️⃣ 🛠 Kullanım önerileri  
-6️⃣ 🛒 Satın almaya yönlendiren CTA  
-7️⃣ USP — ürünün benzersiz değer önerisi  
-8️⃣ SEO için 10 anahtar kelime  
-9️⃣ Trendyol, Amazon ve Hepsiburada için kısa açıklama önerileri  
-🔟 Markaya uygun tek cümlelik mağaza sloganı  
-1️⃣1️⃣ A/B testli iki farklı başlık (Title A & Title B)  
-1️⃣2️⃣ Trendyol etiket önerileri (yüksek arama hacmine göre)  
-1️⃣3️⃣ Fiyat psikolojisi optimizasyon önerisi  
-1️⃣4️⃣ Varyant analizi: renk, beden, kapasite gibi varyantları listeleme (bilgi varsa)  
-1️⃣5️⃣ Müşteri yorum analizi: memnuniyet ve şikâyet temaları, aksiyon önerileri  
-1️⃣6️⃣ Sosyal medya reklam metinleri: özellikle Instagram/Trendyol için kısa ve etkili kopyalar  
-1️⃣7️⃣ Mağaza için kısa premium marka hikâyesi (kullanıcı isterse genişletilebilir)
-
-Ek kurallar:
-- Asla "ben bir dil modeliyim" veya "OpenAI beni geliştirdi" deme.
-- Model ismi, sistem detayları, API gibi teknik ayrıntıları açıklama.
-- Kullanıcı hangi tonda yazarsa yazsın; sen profesyonel, kurumsal ve sakin bir ton koru.
-- Ürün veya sektör belirsizse, önce kısaca ne sattığını sorup sonra bu çerçevede üret.
-
-Sistem zamanı: {zaman_bilgisi}
-"""
+    Her zaman kendini "ALPTECH AI" olarak tanıt.
+    Seni kimin geliştirdiği sorulduğunda: "ALPTECH AI ekibi" de.
+    Mümkün olduğunca kısa ama net cevap ver; kullanıcı isterse detaya gir.
+    Sistem notu: Bu yanıtlar {zaman_bilgisi} tarihinde oluşturuluyor.
+    """
 
 
 def normal_sohbet(client: OpenAI):
@@ -751,8 +691,8 @@ def normal_sohbet(client: OpenAI):
         response = client.chat.completions.create(
             model=model_to_use,
             messages=messages,
-            temperature=0.3,
-            max_tokens=1400,
+            temperature=0.2,
+            max_tokens=1200,
         )
         try:
             return response.choices[0].message.content
@@ -898,14 +838,13 @@ def sidebar_ui():
     with prompt_exp:
         if st.button("🛍 Ürün açıklaması oluştur", key="p_prod_desc"):
             st.session_state.pending_prompt = (
-                "Bir e-ticaret ürünü için profesyonel, SEO uyumlu ve dönüşüm odaklı tam paket içerik üret: "
-                "ürün açıklaması, 5 fayda, hedef kitle, kutu içeriği, CTA, USP, SEO keyword, "
-                "Trendyol/Amazon kısa açıklamalar ve marka sloganı."
+                "Bir e-ticaret ürünü için SEO uyumlu, ikna edici bir ürün açıklaması "
+                "yazar mısın? Özellikler: [ÜRÜN ADI], [ÖNE ÇIKAN ÖZELLİKLER], [KULLANIM ALANLARI]."
             )
         if st.button("🎉 Kampanya / İndirim duyurusu", key="p_campaign"):
             st.session_state.pending_prompt = (
-                "Markam için indirim kampanyası duyurusu yazar mısın? "
-                "Kısa, kurumsal ama sıcak bir dille; CTA içersin."
+                "Markam için % indirim içeren kısa bir kampanya duyurusu metni yazar mısın? "
+                "Ton: samimi, enerjik, aksiyona çağıran."
             )
         if st.button("📢 Eğitim / Etkinlik duyurusu", key="p_event"):
             st.session_state.pending_prompt = (
@@ -917,8 +856,8 @@ def sidebar_ui():
     with prompt_img:
         if st.button("📲 Instagram post tasarım fikri", key="p_ig_post"):
             st.session_state.pending_prompt = (
-                "Bir ürün için Instagram post tasarım fikri üret. "
-                "Arka plan, renk paleti, tipografi ve çekim açısı önerisi içersin."
+                "Bir ürün için Instagram post tasarım fikri üret. Arka plan, renk paleti, "
+                "tipografi ve çekim açısı önerisi içersin."
             )
         if st.button("🎯 Reklam kreatif fikirleri", key="p_ad_ideas"):
             st.session_state.pending_prompt = (
@@ -1370,3 +1309,4 @@ st.markdown(
     "<div class='custom-footer'>ALPTECH AI Stüdyo © 2025 | Developed by Alper</div>",
     unsafe_allow_html=True,
 )
+

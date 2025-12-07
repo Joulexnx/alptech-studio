@@ -8,7 +8,7 @@ ALPTECH AI Stüdyo — v4.0 (E-Ticaret Pro)
 - ALPTECH AI kimlik, güvenlik filtresi
 - Chat içinde: '+' ile dosya/görsel yükleme, 🎤 sesle yaz (Web Speech API)
 - Sol sidebar: konuşma geçmişi, prompt kütüphanesi, E-Ticaret akıllı şablonları, basit analytics
-- GPT-5.1 odaklı, e-ticaret uzmanı sohbet motoru
+- gpt-4o odaklı, e-ticaret uzmanı sohbet motoru
 """
 
 from __future__ import annotations
@@ -37,8 +37,8 @@ else:
         "⚠️ OPENAI_API_KEY tanımlı değil. Sohbet ve AI sahne düzenleme özellikleri devre dışı."
     )
 
-# Varsayılan model: GPT-5.1
-DEFAULT_MODEL = st.secrets.get("OPENAI_MODEL", "gpt-5.1")
+# Varsayılan model: gpt-4o
+DEFAULT_MODEL = st.secrets.get("OPENAI_MODEL", "gpt-4o")
 
 # OpenWeather
 WEATHER_API_KEY = st.secrets.get(
@@ -697,7 +697,7 @@ def normal_sohbet(client: OpenAI):
         else:
             messages.append({"role": "assistant", "content": msg["content"]})
 
-    model_to_use = st.secrets.get("OPENAI_MODEL", DEFAULT_MODEL) or "gpt-5.1"
+    model_to_use = st.secrets.get("OPENAI_MODEL", DEFAULT_MODEL) or "gpt-4o"
     try:
         response = client.chat.completions.create(
             model=model_to_use,
@@ -1029,7 +1029,7 @@ with header_right:
         """
         <h1 style="margin-bottom: 0.2rem;">ALPTECH AI Stüdyo</h1>
         <p style="margin-top: 0; font-size: 0.95rem;">
-        Ürününü ekle, e-ticaret ve sosyal medya için profesyonel sahneler oluştur; GPT-5.1 destekli asistanla metinlerini hazırla.
+        Ürününü ekle, e-ticaret ve sosyal medya için profesyonel sahneler oluştur; gpt-4o destekli asistanla metinlerini hazırla.
         </p>
         """,
         unsafe_allow_html=True,
@@ -1420,3 +1420,4 @@ st.markdown(
     "<div class='custom-footer'>ALPTECH AI Stüdyo © 2025 | Developed by Alper</div>",
     unsafe_allow_html=True,
 )
+

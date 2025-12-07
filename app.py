@@ -10,7 +10,7 @@ from __future__ import annotations
 import traceback
 from datetime import datetime
 from io import BytesIO
-from zoneinfo import ZoneInfo  # yedek için
+from zoneinfo import ZoneInfo  # Python 3.9+
 
 import requests
 import streamlit as st
@@ -21,13 +21,8 @@ from rembg import remove
 # ----------------------------
 # GÜVENLİ AYARLAR & KONFIG
 # ----------------------------
-# NOT: Bu anahtarları BEN senin adına alamam.
-# OpenWeather ve OpenAI için kendi hesabından API key üretmen gerekiyor.
-# Sonra .streamlit/secrets.toml içine:
-#   OPENAI_API_KEY = "xxxx"
-#   WEATHER_API_KEY = "yyyy"
-#   WEATHER_DEFAULT_CITY = "Istanbul"  (opsiyonel)
-# eklemelisin.
+# NOT: OPENAI_API_KEY'i st.secrets içine kendin eklemelisin.
+# Weather için istersen secrets'e yaz, yoksa aşağıdaki fallback key kullanılır.
 
 if "OPENAI_API_KEY" in st.secrets:
     SABIT_API_KEY = st.secrets["OPENAI_API_KEY"]
@@ -37,10 +32,11 @@ else:
 
 DEFAULT_MODEL = st.secrets.get("OPENAI_MODEL", "gpt-4o-mini")
 
-WEATHER_API_KEY = st.secrets.get("WEATHER_API_KEY", None)
+# Kullanıcının verdiği key default olsun, secrets varsa onu kullan
+WEATHER_API_KEY = st.secrets.get("WEATHER_API_KEY", "5f9ee20a060a62ba9cb79d4a048395d9")
 WEATHER_DEFAULT_CITY = st.secrets.get("WEATHER_DEFAULT_CITY", "İstanbul")
 
-# Logo dosyası (app.py ile aynı klasörde)
+# Logo dosyası (app.py ile aynı klasörde olmalı)
 LOGO_PATH = "ALPTECHAI.png"
 
 st.set_page_config(
@@ -658,6 +654,50 @@ st.divider()
 # STÜDYO MODU
 # ----------------------------
 if st.session_state.app_mode == "📸 Stüdyo Modu (Görsel Düzenleme)":
+    # Üstte açıklama kartları
+    c1, c2, c3 = st.columns(3)
+    with c1:
+        st.markdown(
+            f"""
+            <div class="image-container">
+                <h4 style="margin-bottom:4px;">🎨 Yaratıcılık</h4>
+                <p style="font-size:0.85rem; color:{tema['subtext']}; margin-bottom:0;">
+                Ürününü farklı sahnelerde dene: beyaz fon, katalog stüdyosu, mermer zemin,
+                ahşap masa ve daha fazlası. Hepsi tek tıkla.
+                </p>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+    with c2:
+        st.markdown(
+            f"""
+            <div class="image-container">
+                <h4 style="margin-bottom:4px;">✨ Efektler</h4>
+                <p style="font-size:0.85rem; color:{tema['subtext']}; margin-bottom:0;">
+                Arka planı tamamen kaldırabilir, düz renk fonlar ekleyebilir veya
+                yapay zeka ile profesyonel stüdyo sahneleri oluşturabilirsin.
+                </p>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+    with c3:
+        st.markdown(
+            f"""
+            <div class="image-container">
+                <h4 style="margin-bottom:4px;">📤 Paylaşım</h4>
+                <p style="font-size:0.85rem; color:{tema['subtext']}; margin-bottom:0;">
+                Oluşturduğun görselleri PNG veya JPEG formatında indirip doğrudan
+                e-ticaret sitelerinde, kataloglarda veya reklamlarda kullanabilirsin.
+                </p>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
+    st.markdown("&nbsp;", unsafe_allow_html=True)
+
     tab_yukle, tab_kamera = st.tabs(["📁 Dosya Yükle", "📷 Kamera"])
     kaynak_dosya = None
     with tab_yukle:

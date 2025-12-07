@@ -1,6 +1,6 @@
 """
 File: app.py
-ALPTECH AI Stüdyo — v4.0 (E-Ticaret Pro)
+ALPTECH AI Stüdyo — v4.0 (E-Ticaret Pro, GPT-5.1 Ready)
 - Apple-style UI
 - Studio + Chat modları
 - TR gerçek saat (WorldTimeAPI fallback local)
@@ -8,7 +8,7 @@ ALPTECH AI Stüdyo — v4.0 (E-Ticaret Pro)
 - ALPTECH AI kimlik, güvenlik filtresi
 - Chat içinde: '+' ile dosya/görsel yükleme, 🎤 sesle yaz (Web Speech API)
 - Sol sidebar: konuşma geçmişi, prompt kütüphanesi, E-Ticaret akıllı şablonları, basit analytics
-- gpt-4o odaklı, e-ticaret uzmanı sohbet motoru
+- OPENAI_MODEL yoksa varsayılan: gpt-5.1 (e-ticaret odaklı sohbet motoru)
 """
 
 from __future__ import annotations
@@ -37,8 +37,8 @@ else:
         "⚠️ OPENAI_API_KEY tanımlı değil. Sohbet ve AI sahne düzenleme özellikleri devre dışı."
     )
 
-# Varsayılan model: gpt-4o
-DEFAULT_MODEL = st.secrets.get("OPENAI_MODEL", "gpt-4o")
+# Varsayılan model: gpt-5.1 (sen secrets.toml'da değiştirebilirsin)
+DEFAULT_MODEL = st.secrets.get("OPENAI_MODEL", "gpt-5.1")
 
 # OpenWeather
 WEATHER_API_KEY = st.secrets.get(
@@ -697,7 +697,7 @@ def normal_sohbet(client: OpenAI):
         else:
             messages.append({"role": "assistant", "content": msg["content"]})
 
-    model_to_use = st.secrets.get("OPENAI_MODEL", DEFAULT_MODEL) or "gpt-4o"
+    model_to_use = st.secrets.get("OPENAI_MODEL", DEFAULT_MODEL) or DEFAULT_MODEL
     try:
         response = client.chat.completions.create(
             model=model_to_use,
@@ -747,7 +747,7 @@ def sahne_olustur(client: OpenAI, urun_resmi: Image.Image, prompt_text: str):
                 urun_resmi,
                 alpha_matting=True,
                 alpha_matting_foreground_threshold=240,
-                alpha_matting_background_threshold=10,
+                alpha_matting_background_threshold=5,  # zincirleri korumak için daha yumuşak
             )
         except Exception:
             temiz_urun = urun_resmi.convert("RGBA")
@@ -789,7 +789,7 @@ def yerel_islem(urun_resmi: Image.Image, islem_tipi: str):
             urun_resmi,
             alpha_matting=True,
             alpha_matting_foreground_threshold=240,
-            alpha_matting_background_threshold=10,
+            alpha_matting_background_threshold=5,
         )
     except Exception as e:
         print("rembg hata, orijinal resim kullanılıyor:", e)
@@ -1029,7 +1029,7 @@ with header_right:
         """
         <h1 style="margin-bottom: 0.2rem;">ALPTECH AI Stüdyo</h1>
         <p style="margin-top: 0; font-size: 0.95rem;">
-        Ürününü ekle, e-ticaret ve sosyal medya için profesyonel sahneler oluştur; gpt-4o destekli asistanla metinlerini hazırla.
+        Ürününü ekle, e-ticaret ve sosyal medya için profesyonel sahneler oluştur; GPT-5.1 destekli asistanla metinlerini hazırla.
         </p>
         """,
         unsafe_allow_html=True,
@@ -1310,26 +1310,24 @@ elif st.session_state.app_mode == "💬 Sohbet Modu (Genel Asistan)":
         unsafe_allow_html=True,
     )
 
-    # 1) Önce eski mesajlar gösteriliyor
+    # 1) Eski mesajlar
     for msg in st.session_state.chat_history:
         with st.chat_message(msg["role"]):
             st.write(msg["content"])
 
     st.write("")  # küçük boşluk
 
-    # 2) Mesaj kutusunun hemen üstünde: + butonu + bilgi metni + uploader
+    # 2) Mesaj kutusunun hemen üstünde: + butonu + bilgi + uploader
     bottom_bar = st.container()
     with bottom_bar:
         col_plus, col_info = st.columns([0.12, 0.88])
 
-        # SOL: + butonu (mesaj alanının soluna hizalı)
         with col_plus:
             if st.button("➕", key="chat_plus_bottom", help="Dosya / görsel ekle"):
                 st.session_state.show_upload_panel = (
                     not st.session_state.show_upload_panel
                 )
 
-        # SAĞ: bilgilendirme yazısı
         with col_info:
             if st.session_state.chat_image:
                 st.caption(
@@ -1340,7 +1338,6 @@ elif st.session_state.app_mode == "💬 Sohbet Modu (Genel Asistan)":
                     "İstersen alttaki '+' ile ürün görseli yükleyip mağaza açıklaması, kampanya metni vb. yazdırabilirsin."
                 )
 
-        # '+' açıldığında hemen altına uploader geliyor
         if st.session_state.show_upload_panel:
             chat_upload = st.file_uploader(
                 "Görsel veya dosya yükle",
@@ -1360,7 +1357,7 @@ elif st.session_state.app_mode == "💬 Sohbet Modu (Genel Asistan)":
                     st.error("Dosya okunamadı, lütfen tekrar dene.")
                     print("chat upload error:", e)
 
-    # 3) Chat input (en altta, kendi yerinde duruyor)
+    # 3) Chat input
     pending_prompt = st.session_state.pending_prompt
     if pending_prompt:
         st.session_state.pending_prompt = None
@@ -1423,7 +1420,6 @@ elif st.session_state.app_mode == "💬 Sohbet Modu (Genel Asistan)":
         st.session_state.chat_history
     )
 
-
 # ===========================
 # FOOTER
 # ===========================
@@ -1431,5 +1427,3 @@ st.markdown(
     "<div class='custom-footer'>ALPTECH AI Stüdyo © 2025 | Developed by Alper</div>",
     unsafe_allow_html=True,
 )
-
-

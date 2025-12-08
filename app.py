@@ -25,6 +25,20 @@ from openai import OpenAI
 from PIL import Image, ImageOps, ImageFilter
 from rembg import remove
 
+# Wikipedia entegrasyonu
+try:
+    import wikipedia
+
+    HAS_WIKIPEDIA = True
+    try:
+        # Varsayılan dili TR yapalım
+        wikipedia.set_lang("tr")
+    except Exception:
+        pass
+except ImportError:
+    wikipedia = None  # type: ignore
+    HAS_WIKIPEDIA = False
+
 # ===========================
 # GÜVENLİ AYARLAR & KONFIG
 # ===========================
@@ -574,6 +588,53 @@ def get_weather_forecast_answer(location: str | None = None, days: int = 7) -> s
         return "7 günlük hava tahmini alınırken bir sorun oluştu; lütfen daha sonra tekrar dene."
 
 # ===========================
+# WIKIPEDIA ENTEGRASYONU
+# ===========================
+GENEL_BILGI_TETIKLERI = [
+    "kimdir",
+    "nedir",
+    "ne zaman",
+    "hangi yıl",
+    "hangi yil",
+    "tarih",
+    "kuruldu",
+    "başkenti",
+    "baskenti",
+    "takımı",
+    "takimi",
+    "ülke",
+    "ulke",
+    "şehir",
+    "sehir",
+]
+
+
+def wiki_gerekli_mi(soru: str) -> bool:
+    """Soru genel bilgi / ansiklopedik mi diye kaba bir kontrol."""
+    if not HAS_WIKIPEDIA:
+        return False
+    soru_k = soru.lower()
+    return any(t in soru_k for t in GENEL_BILGI_TETIKLERI)
+
+
+def wiki_ozet_cek(sorgu: str, cumle_sayisi: int = 4) -> str:
+    """Wikipedia'dan kısa özet çeker, hata olursa boş string döner."""
+    if not HAS_WIKIPEDIA:
+        return ""
+    try:
+        return wikipedia.summary(sorgu, sentences=cumle_sayisi)
+    except Exception:
+        # Daha güçlü/disambiguation handling istersen buraya ekleyebiliriz
+        try:
+            # Bazı durumlarda sadece başlığı düzeltmek bile işe yarayabiliyor
+            temiz = sorgu.strip()
+            if temiz:
+                return wikipedia.summary(temiz, sentences=cumle_sayisi)
+        except Exception:
+            return ""
+        return ""
+
+# ===========================
 # GÜVENLİK / FİLTRE
 # ===========================
 BAD_PATTERNS = [
@@ -626,13 +687,27 @@ def custom_identity_interceptor(user_message: str) -> str | None:
 def custom_utility_interceptor(user_message: str) -> str | None:
     msg = user_message.lower()
 
+    # Saat / tarih
     if "saat" in msg or "tarih" in msg:
         return get_time_answer()
 
+    # Doğrudan Wikipedia komutu: "wiki Beşiktaş JK"
+    if HAS_WIKIPEDIA and (msg.startswith("wiki ") or msg.startswith("wikipedia ")):
+        konu = user_message.split(" ", 1)[1].strip() if " " in user_message else ""
+        if not konu:
+            return "Hangi konu için Wikipedia özeti istediğini yazar mısın? Örn: `wiki Beşiktaş JK`"
+        ozet = wiki_ozet_cek(konu, cumle_sayisi=4)
+        if ozet:
+            return f"🔎 Wikipedia özeti – **{konu}**:\n\n{ozet}"
+        else:
+            return f"'{konu}' için Türkçe Wikipedia özetine ulaşamadım."
+
+    # 7 günlük hava
     if "7 günlük hava" in msg or "7 gunluk hava" in msg or "haftalık hava" in msg:
         city = extract_city_from_message(user_message) or WEATHER_DEFAULT_CITY
         return get_weather_forecast_answer(city)
 
+    # Anlık hava
     if "hava" in msg or "hava durumu" in msg or "hava nasıl" in msg:
         city = extract_city_from_message(user_message) or WEATHER_DEFAULT_CITY
         return get_weather_answer(city)
@@ -661,30 +736,58 @@ def build_system_talimati():
 def normal_sohbet(client: OpenAI):
     system_talimati = build_system_talimati()
     max_context = 40
-    messages = [{"role": "system", "content": system_talimati}]
+
+    # Son mesajlar
     history_slice = st.session_state.chat_history[-max_context:]
 
+    # En son kullanıcının yazdığı mesaj (yeni soru)
+    last_user_message: str | None = None
+    if history_slice and history_slice[-1]["role"] == "user":
+        last_user_message = history_slice[-1]["content"]
+
+    # Başlangıçta sistem mesajı
+    messages: list[dict] = [{"role": "system", "content": system_talimati}]
+
+    # Eski mesajları (son kullanıcının mesajı HARİÇ) ekle
     for i, msg in enumerate(history_slice):
+        if i == len(history_slice) - 1 and msg["role"] == "user":
+            # son kullanıcının mesajını birazdan ayrı işleyeceğiz
+            continue
+
         api_role = "user" if msg["role"] == "user" else "assistant"
         if api_role == "user":
-            if (
-                i == len(history_slice) - 1
-                and st.session_state.get("chat_image") is not None
-            ):
-                img_bytes = st.session_state.chat_image
-                b64 = base64.b64encode(img_bytes).decode("utf-8")
-                content = [
-                    {"type": "text", "text": msg["content"]},
-                    {
-                        "type": "image_url",
-                        "image_url": {"url": f"data:image/png;base64,{b64}"},
-                    },
-                ]
-                messages.append({"role": "user", "content": content})
-            else:
-                messages.append({"role": "user", "content": msg["content"]})
+            messages.append({"role": "user", "content": msg["content"]})
         else:
             messages.append({"role": "assistant", "content": msg["content"]})
+
+    # --- BURADA WIKIPEDIA BAĞLAMI EKLENİYOR ---
+    if last_user_message and wiki_gerekli_mi(last_user_message):
+        wiki_text = wiki_ozet_cek(last_user_message, cumle_sayisi=4)
+        if wiki_text:
+            wiki_system = (
+                "Aşağıda kullanıcının sorusuyla ilgili Wikipedia'dan otomatik alınmış "
+                "kısa bir özet var. Bu bilgiler %100 doğru olmak zorunda değil; "
+                "yanıt üretirken sadece referans olarak kullan, emin değilsen kesinmiş gibi davranma.\n\n"
+                f"Wikipedia özeti:\n{wiki_text}"
+            )
+            # Modelin bağlamına ekstra sistem mesajı olarak ekliyoruz
+            messages.append({"role": "system", "content": wiki_system})
+
+    # Son kullanıcının mesajını (gerekirse görselle birlikte) en sona ekle
+    if last_user_message is not None:
+        if st.session_state.get("chat_image") is not None:
+            img_bytes = st.session_state.chat_image
+            b64 = base64.b64encode(img_bytes).decode("utf-8")
+            content = [
+                {"type": "text", "text": last_user_message},
+                {
+                    "type": "image_url",
+                    "image_url": {"url": f"data:image/png;base64,{b64}"},
+                },
+            ]
+            messages.append({"role": "user", "content": content})
+        else:
+            messages.append({"role": "user", "content": last_user_message})
 
     model_to_use = st.secrets.get("OPENAI_MODEL", DEFAULT_MODEL)
     try:
@@ -1303,7 +1406,3 @@ st.markdown(
     "<div class='custom-footer'>ALPTECH AI Stüdyo © 2025 | Developed by Alper</div>",
     unsafe_allow_html=True,
 )
-
-
-
-

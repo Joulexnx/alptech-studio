@@ -19,6 +19,8 @@ from PIL import Image, ImageOps
 from google import generativeai as genai
 from openai import OpenAI
 
+from __future__ import annotations
+
 import os
 import io
 import re
@@ -2117,4 +2119,3 @@ def run_general_chat():
         st.write(answer)
 
     st.session_state.general_chat.append({"role": "assistant", "content": answer})
-

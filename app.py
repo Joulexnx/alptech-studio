@@ -5,6 +5,22 @@
 
 from __future__ import annotations
 
+import base64
+import io
+import traceback
+import re
+import requests
+from datetime import datetime
+from zoneinfo import ZoneInfo
+from typing import Literal, Optional
+
+import streamlit as st
+from PIL import Image, ImageOps
+from google import generativeai as genai
+from openai import OpenAI
+
+from __future__ import annotations
+
 import os
 import io
 import re
@@ -854,23 +870,6 @@ def run_assistant_router():
 # Hybrid Multi-Model System
 # Gemini Vision + GPT-4o
 # ============================
-
-from __future__ import annotations
-
-import base64
-import io
-import traceback
-import re
-import requests
-from datetime import datetime
-from zoneinfo import ZoneInfo
-from typing import Literal, Optional
-
-import streamlit as st
-from PIL import Image, ImageOps
-from google import generativeai as genai
-from openai import OpenAI
-
 
 # =======================================================
 # CONFIG & SECRETS

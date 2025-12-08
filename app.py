@@ -815,7 +815,7 @@ def sidebar_ui():
         ]
         st.session_state.current_session = new_name
         st.session_state.chat_history = st.session_state.chat_sessions[new_name]
-        st.experimental_rerun()
+        st.rerun()
 
     sessions = list(st.session_state.chat_sessions.keys())
     if sessions:
@@ -828,7 +828,7 @@ def sidebar_ui():
             )
             st.session_state.current_session = selected
             st.session_state.chat_history = st.session_state.chat_sessions[selected]
-            st.experimental_rerun()
+            st.rerun())
 
     st.sidebar.markdown("---")
 
@@ -1084,7 +1084,7 @@ if st.session_state.app_mode == "📸 Stüdyo Modu (Görsel Düzenleme)":
                                                     resp.content
                                                 )
                                                 st.session_state.sonuc_format = "PNG"
-                                                st.experimental_rerun()
+                                                st.rerun()
                                             else:
                                                 st.error(
                                                     "AI görseli indirilemedi. Lütfen tekrar dene."
@@ -1115,7 +1115,7 @@ if st.session_state.app_mode == "📸 Stüdyo Modu (Görsel Düzenleme)":
                                     sonuc.save(buf, format=fmt)
                                     st.session_state.sonuc_gorseli = buf.getvalue()
                                     st.session_state.sonuc_format = fmt
-                                    st.experimental_rerun()
+                                    st.rerun()
                             else:
                                 st.warning(
                                     "Lütfen bir hazır tema seç veya kendi sahneni yaz."
@@ -1179,7 +1179,7 @@ if st.session_state.app_mode == "📸 Stüdyo Modu (Görsel Düzenleme)":
                     st.write("")
                     if st.button("🔄 Yeni İşlem Yap"):
                         st.session_state.sonuc_gorseli = None
-                        st.experimental_rerun()
+                        st.rerun()
 
 # ===========================
 # SOHBET MODU
@@ -1303,5 +1303,6 @@ st.markdown(
     "<div class='custom-footer'>ALPTECH AI Stüdyo © 2025 | Developed by Alper</div>",
     unsafe_allow_html=True,
 )
+
 
 

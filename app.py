@@ -1,13 +1,14 @@
 # app.py
 
 """
-Qelyon AI Stüdyo — v4.0 (E-Ticaret + Danışmanlık + Pro Stüdyo)
+Qelyon AI Stüdyo — v4.0 (E-Ticaret + Danışmanlık + Pro Stüdyo + Psikolojik Danışmanlık)
 
 - Marka: Qelyon AI
-- 3 Mod:
+- 4 Mod:
   • 📸 Stüdyo Modu (Görsel Düzenleme)
   • 🛒 E-Ticaret Asistanı
   • 💼 Danışmanlık Asistanı
+  • 🧠 Psikolojik Danışmanlık Asistanı
 
 - OPENAI_MODEL varsayılanı: gpt-4o
 - İki logo:
@@ -529,17 +530,47 @@ BAD_PATTERNS = [
     r"(?i)ibne",
     r"(?i)tecavüz",
     r"(?i)uyuşturucu",
-    r"(?i)intihar",
     r"(?i)bomba yap",
 ]
 
 
 def moderate_content(text: str) -> str | None:
+    """
+    Bazı hassas içeriklerde güvenli yanıtlar üretir veya isteği reddeder.
+    Özellikle kendine zarar verme / intihar içeriğinde destekleyici + yönlendirici cevap döndürür.
+    """
+    lowered = text.lower()
+
+    # Kendine zarar verme / intihar ifadeleri için özel yanıt
+    crisis_keywords = [
+        "intihar",
+        "kendimi öldürmek",
+        "kendimi oldurmek",
+        "yaşamak istemiyorum",
+        "yasamak istemiyorum",
+        "hayatıma son vermek",
+        "hayatima son vermek",
+    ]
+    if any(k in lowered for k in crisis_keywords):
+        return (
+            "Böyle hissettiğini duymak gerçekten zor ve yalnız olmadığını bilmeni isterim. 💛\n\n"
+            "Ben bir yapay zeka asistanıyım; **kriz anlarında profesyonel yardımın yerini tutamam** "
+            "ve acil müdahale sağlayamam.\n\n"
+            "Şu anda kendine zarar verme düşüncelerin varsa lütfen:\n"
+            "- Mümkünse **yalnız kalmamaya** çalış,\n"
+            "- Güvendiğin bir yakınından destek iste,\n"
+            "- Bulunduğun ülkedeki **acil yardım hattını** veya en yakın **sağlık kuruluşunu** hemen ara.\n"
+            "- Türkiye'de yaşıyorsan **112 Acil**'i arayabilirsin.\n\n"
+            "Burada sana genel anlamda duygularını düzenlemene yardımcı olabilecek, "
+            "terapinin yerini almayan bazı öneriler sunabilirim; "
+            "ama en önemli adım bir ruh sağlığı profesyoneliyle yüz yüze ya da online görüşmek olacaktır."
+        )
+
     for pat in BAD_PATTERNS:
         if re.search(pat, text):
             return (
                 "Bu isteğe güvenlik nedeniyle yanıt veremiyorum. "
-                "Dilersen daha farklı bir konuda yardımcı olabilirim. 🙂"
+                "Dilersen daha farklı ve güvenli bir konuda yardımcı olabilirim. 🙂"
             )
     return None
 
@@ -562,9 +593,10 @@ def custom_identity_interceptor(user_message: str) -> str | None:
     if any(t in msg for t in triggers):
         return (
             "Ben **Qelyon AI**.\n\n"
-            "Qelyon AI olarak, profesyonel danışmanlık ve veri destekli içgörülerle "
-            "iş hedeflerine ulaşmanı hızlandırıyorum. 🚀\n\n"
-            "Ürün görselleri, e-ticaret metinleri ve iş stratejisi tarafında sana eşlik ediyorum."
+            "Qelyon AI olarak; ürün görselleri, e-ticaret içerikleri, iş stratejisi ve "
+            "psikolojik danışmanlık alanında bilgilendirici destek sunan bir yapay zeka asistanıyım. 🚀\n\n"
+            "Terapi yapmam, tanı koymam ve ilaç önermem; yalnızca genel bilgiler, "
+            "fikirler ve metin taslakları üretirim."
         )
     return None
 
@@ -573,7 +605,7 @@ def custom_utility_interceptor(user_message: str) -> str | None:
     msg = user_message.lower()
 
     # Saat / tarih — tarihçesi/tarihi gibi history isteklerine karışma
-    if "saat" in msg or "tarih" in msg:
+    if re.search(r"\b(saat|tarih)\b", msg):
         if not re.search(r"\b(tarihi|tarihçesi|tarihcesi|geçmişi|gecmisi)\b", msg):
             return get_time_answer()
 
@@ -588,7 +620,7 @@ def custom_utility_interceptor(user_message: str) -> str | None:
     return None
 
 
-def build_system_talimati(profile: Literal["ecom", "consult"]) -> str:
+def build_system_talimati(profile: Literal["ecom", "consult", "psy"]) -> str:
     z = turkce_zaman_getir()
 
     if profile == "ecom":
@@ -621,26 +653,75 @@ def build_system_talimati(profile: Literal["ecom", "consult"]) -> str:
         Sistem notu: Bu yanıt {z} tarihinde oluşturulmuştur.
         """
 
-    # Danışmanlık profili
+    if profile == "consult":
+        return f"""
+        Senin adın **Qelyon AI**.
+
+        Qelyon AI olarak, profesyonel danışmanlık ve veri destekli içgörülerle
+        iş hedeflerine ulaşmayı hızlandıran bir asistansın. 🚀
+
+        Uzmanlık alanların:
+        - İş stratejisi ve büyüme planları
+        - Pazarlama ve satış hunisi analizi
+        - KPI belirleme, OKR yapısı ve performans ölçümü
+        - Müşteri segmentasyonu ve hedef kitle analizi
+        - Temel finansal modelleme (gelir, maliyet, kârlılık senaryoları)
+        - Operasyonel verimlilik ve süreç iyileştirme
+
+        Cevap stilin:
+        - Önce durumu anlamaya çalışan 1-2 net soru sorabilirsin.
+        - Sonra yapıyı bozmadan analitik, ancak sade ve uygulanabilir öneriler ver.
+        - Gerektiğinde maddelerle özetle, aksiyon adımları ver.
+        - Uydurma veri üretme; varsayım kullanıyorsan bunu açıkça belirt.
+
+        Sistem notu: Bu yanıt {z} tarihinde oluşturulmuştur.
+        """
+
+    # Psikolojik danışmanlık profili
     return f"""
-    Senin adın **Qelyon AI**.
+    Senin adın **Qelyon AI Psikolojik Danışmanlık Asistanı**.
 
-    Qelyon AI olarak, profesyonel danışmanlık ve veri destekli içgörülerle
-    iş hedeflerine ulaşmayı hızlandıran bir asistansın. 🚀
+    Rolün:
+    - Psikolojik danışmanlık merkezleri, psikologlar, psikolojik danışmanlar ve danışanlar için
+      destekleyici, bilgilendirici ve etik sınırları olan bir yapay zeka asistansın.
+    - Terapi YAPMAZ, tanı KOYMAZ ve ilaç ÖNERMEZSİN.
+    - Her zaman, gerekli olduğunda kişiyi lisanslı ruh sağlığı profesyoneline yönlendirirsin.
 
-    Uzmanlık alanların:
-    - İş stratejisi ve büyüme planları
-    - Pazarlama ve satış hunisi analizi
-    - KPI belirleme, OKR yapısı ve performans ölçümü
-    - Müşteri segmentasyonu ve hedef kitle analizi
-    - Temel finansal modelleme (gelir, maliyet, kârlılık senaryoları)
-    - Operasyonel verimlilik ve süreç iyileştirme
+    Kullanım senaryoların (kullanıcı mesajına göre hangisinin uygun olduğuna karar ver):
+    1) Danışan için ön görüşme ve yönlendirme:
+       - Kısa, açık uçlu sorularla kişinin şikâyetini ve hedefini anlamaya çalış.
+       - Asla net tanı koyma; bunun yerine "şu belirtiler için bir uzmana görünmeniz faydalı olabilir" gibi ifadeler kullan.
+       - Merkezin/uzmanın uygunluk bilgisini UYDURMA; sadece genel "uzmanla görüş" tavsiyesi ver.
 
-    Cevap stilin:
-    - Önce durumu anlamaya çalışan 1-2 net soru sorabilirsin.
-    - Sonra yapıyı bozmadan analitik, ancak sade ve uygulanabilir öneriler ver.
-    - Gerektiğinde maddelerle özetle, aksiyon adımları ver.
-    - Uydurma veri üretme; varsayım kullanıyorsan bunu açıkça belirt.
+    2) Psiko-eğitim içerikleri:
+       - Kaygı, stres, uyku, sınav kaygısı, iletişim, ilişkiler, öfke vb. konularda
+         bilgilendirici ama tıbbi olmayan açıklamalar ve pratik, temel öneriler üret.
+       - İçeriği istenen formata göre yaz (blog, PDF broşür taslağı, mail, Instagram postu vb.).
+
+    3) Uzman odaklı kullanım:
+       - Uzmanın verdiği seans notlarını başlıklar ve maddeler halinde toparla.
+       - "Oturum özeti", "Danışanın duygu durumu", "Ele alınan temalar", "Verilen ev ödevleri" gibi bölümler önerebilirsin.
+       - Notları her zaman anonimleştirmeyi ve gizliliğe saygı duymayı hatırlat.
+
+    4) Ev ödevi / çalışma taslakları:
+       - Uzmanın belirttiği hedefe göre haftalık küçük egzersizler ve yansıtıcı sorular üret.
+       - Her seferinde ödevin terapiyi destekleyen, ama onun yerini almayan bir araç olduğuna dair kısa bir not ekleyebilirsin.
+
+    5) Kurumsal çalışan destek iletişimi:
+       - Çalışanlara yönelik duyuru metni, bilgilendirme maili, temel stres yönetimi önerileri
+         ve seansa yönlendiren mesaj şablonları hazırlayabilirsin.
+
+    DİL VE TON:
+    - Sıcak, empatik, yargılamayan bir dil kullan.
+    - Cümleleri sade ve anlaşılır tut; gerektiğinde madde madde yaz.
+    - Özellikle duygusal konularda kişinin duygusunu yansıt ("Böyle hissetmen çok anlaşılır..." gibi).
+
+    SINIRLAR:
+    - Tanı isimlerini (depresyon, panik bozukluk vb.) "net tanı koyamam ancak..." gibi yumuşat.
+    - İlaçlarla ilgili hiçbir detaylı öneri verme; her zaman "bu konuyu psikiyatristinle görüşmelisin" de.
+    - Kriz / kendine zarar verme / intihar ima eden ifadelerde:
+      • Acil yardım hatlarını ve en yakın sağlık kuruluşunu aramasını öner.
+      • Bu platformun acil müdahale sağlayamayacağını açıkça belirt.
 
     Sistem notu: Bu yanıt {z} tarihinde oluşturulmuştur.
     """
@@ -648,7 +729,7 @@ def build_system_talimati(profile: Literal["ecom", "consult"]) -> str:
 # ===========================
 # GPT-4o CHAT MOTORU
 # ===========================
-def normal_sohbet(client: OpenAI, profile: Literal["ecom", "consult"]) -> str:
+def normal_sohbet(client: OpenAI, profile: Literal["ecom", "consult", "psy"]) -> str:
     system_talimati = build_system_talimati(profile)
     max_context = 40
     history_slice = st.session_state.chat_history[-max_context:]
@@ -672,7 +753,7 @@ def normal_sohbet(client: OpenAI, profile: Literal["ecom", "consult"]) -> str:
         b64 = base64.b64encode(img_bytes).decode("utf-8")
         content = [
             {"type": "text", "text": last_user},
-            {"type": "image_url", "image_url": {"url": f"data:image/png;base64,{b64}"}},
+            {"type": "image_url", "image_url": {"url": f"data:image/png;base64,{b64}"}}.
         ]
         messages.append({"role": "user", "content": content})
 
@@ -706,7 +787,8 @@ def normal_sohbet(client: OpenAI, profile: Literal["ecom", "consult"]) -> str:
             st.error("⚠️ Sohbet API çağrısında hata. Konsolu kontrol et.")
             print("Chat API HATA:", e, e2, tb)
             return "Üzgünüm, sohbet hizmetinde şu an teknik bir sorun var."
-          # ===========================
+
+# ===========================
 # GÖRSEL İŞLEME (HQ)
 # ===========================
 def _to_png_bytes(image: Image.Image) -> bytes:
@@ -961,6 +1043,7 @@ def sahne_olustur(client: OpenAI, urun_resmi: Image.Image, prompt_text: str):
     except Exception as e:
         print("sahne_olustur hata:", e, traceback.format_exc())
         return None
+
 # ===========================
 # SIDEBAR / PROMPT KÜTÜPHANESİ
 # ===========================
@@ -1045,12 +1128,40 @@ def sidebar_ui():
                 "Şirketim için net KPI ve OKR önerileri ver."
             )
 
+    exp_psy = st.sidebar.expander("🧠 Psikolojik Danışmanlık Promptları", expanded=False)
+    with exp_psy:
+        if st.button("👤 Danışan ön görüşme akışı"):
+            st.session_state.pending_prompt = (
+                "Psikolojik danışmanlık merkezine ilk kez yazan bir danışan için, "
+                "empatik bir dille kısa bir karşılama ve 4-5 soruluk ön görüşme akışı oluştur."
+            )
+        if st.button("📄 Psiko-eğitim broşürü taslağı"):
+            st.session_state.pending_prompt = (
+                "Kaygı ve stresle baş etme konusunda, bir psikolojik danışmanlık merkezinin "
+                "danışanlarına verebileceği psiko-eğitim broşürü taslağı yaz."
+            )
+        if st.button("🗒 Seans notu özetleyici"):
+            st.session_state.pending_prompt = (
+                "Aşağıdaki seans notunu; Oturum Özeti / Danışanın Duygusu / Ele Alınan Temalar / "
+                "Verilen Ev Ödevleri başlıklarıyla profesyonelce yeniden düzenle."
+            )
+        if st.button("✅ Ev ödevi / egzersiz önerileri"):
+            st.session_state.pending_prompt = (
+                "Kaygı odaklı çalışan bir danışan için 1 haftalık kısa ev ödevi ve egzersiz planı taslağı oluştur."
+            )
+        if st.button("🏢 Kurumsal çalışan destek maili"):
+            st.session_state.pending_prompt = (
+                "Bir şirketin çalışanlarına yönelik, kurumla anlaşmalı psikolojik danışmanlık hizmetini "
+                "duyuran bilgilendirme maili metni yaz."
+            )
+
     st.sidebar.markdown("---")
 
     st.sidebar.markdown(
         "**ℹ️ Hakkında**\n\n"
-        "Qelyon AI Stüdyo; ürün görselleri, içerik üretimi ve profesyonel "
-        "danışmanlık içgörüleri için geliştirilmiş bir yapay zeka platformudur. 🚀"
+        "Qelyon AI Stüdyo; ürün görselleri, içerik üretimi, profesyonel "
+        "danışmanlık içgörüleri ve psikolojik danışmanlık alanında destekleyici "
+        "metinler üretmek için geliştirilmiş bir yapay zeka platformudur. 🚀"
     )
 
 
@@ -1082,8 +1193,8 @@ with col_title:
         """
         <h1 style="margin-bottom: 4px;">Qelyon AI Stüdyo</h1>
         <p style="margin-top: 0; font-size: 0.94rem;">
-            Ürününü yükle, profesyonel sahneler oluştur, metinleri optimize et
-            ve Qelyon AI ile iş stratejilerini geliştir.
+            Ürününü yükle, profesyonel sahneler oluştur, metinleri optimize et;
+            iş stratejilerini ve psikolojik danışmanlık süreçlerini Qelyon AI ile destekle.
         </p>
         """,
         unsafe_allow_html=True,
@@ -1091,13 +1202,14 @@ with col_title:
 
 
 # ===========================
-# MOD SEÇİMİ (3 Mod)
+# MOD SEÇİMİ (4 Mod)
 # ===========================
-col_m1, col_m2, col_m3 = st.columns(3)
+col_m1, col_m2, col_m3, col_m4 = st.columns(4)
 
 is_studio = st.session_state.app_mode == "📸 Stüdyo Modu"
 is_ecom = st.session_state.app_mode == "🛒 E-Ticaret Asistanı"
 is_consult = st.session_state.app_mode == "💼 Danışmanlık Asistanı"
+is_psy = st.session_state.app_mode == "🧠 Psikolojik Danışmanlık Asistanı"
 
 with col_m1:
     if st.button(
@@ -1129,6 +1241,16 @@ with col_m3:
         st.session_state.sonuc_gorseli = None
         st.rerun()
 
+with col_m4:
+    if st.button(
+        "🧠 Psikolojik Danışmanlık",
+        use_container_width=True,
+        type="primary" if is_psy else "secondary",
+    ):
+        st.session_state.app_mode = "🧠 Psikolojik Danışmanlık Asistanı"
+        st.session_state.sonuc_gorseli = None
+        st.rerun()
+
 st.divider()
 
 
@@ -1148,7 +1270,6 @@ if st.session_state.app_mode == "📸 Stüdyo Modu":
     # STÜDYO MODU — İŞLEME & SONUÇ
     # ===========================
     if raw_source:
-        import traceback
         try:
             raw_image = Image.open(raw_source)
             raw_image = ImageOps.exif_transpose(raw_image).convert("RGBA")
@@ -1240,17 +1361,38 @@ if st.session_state.app_mode == "📸 Stüdyo Modu":
 # ==========================================================
 # ===============   CHAT / METİN ASİSTANI   ================
 # ==========================================================
-if st.session_state.app_mode in ["🛒 E-Ticaret Asistanı", "💼 Danışmanlık Asistanı"]:
+if st.session_state.app_mode in [
+    "🛒 E-Ticaret Asistanı",
+    "💼 Danışmanlık Asistanı",
+    "🧠 Psikolojik Danışmanlık Asistanı",
+]:
     inject_voice_js()
 
-    profile = "ecom" if st.session_state.app_mode == "🛒 E-Ticaret Asistanı" else "consult"
+    if st.session_state.app_mode == "🛒 E-Ticaret Asistanı":
+        profile: Literal["ecom", "consult", "psy"] = "ecom"
+    elif st.session_state.app_mode == "💼 Danışmanlık Asistanı":
+        profile = "consult"
+    else:
+        profile = "psy"
 
-    st.markdown(
-        f"### 💬 Qelyon AI — {'E-Ticaret Asistanı' if profile=='ecom' else 'Danışmanlık Asistanı'}"
-    )
-    st.caption(
-        "Mesaj yazabilir, sesle giriş yapabilir veya görsel yükleyip analiz isteyebilirsin."
-    )
+    if profile == "ecom":
+        sub_title = "E-Ticaret Asistanı"
+    elif profile == "consult":
+        sub_title = "Danışmanlık Asistanı"
+    else:
+        sub_title = "Psikolojik Danışmanlık Asistanı"
+
+    st.markdown(f"### 💬 Qelyon AI — {sub_title}")
+    if profile == "psy":
+        st.caption(
+            "Bu mod, psikolojik danışmanlık merkezleri, uzmanlar ve danışanlar için "
+            "bilgilendirici ve destekleyici içerikler üretir. Terapi yapmaz, tanı koymaz ve "
+            "ilaç önermez."
+        )
+    else:
+        st.caption(
+            "Mesaj yazabilir, sesle giriş yapabilir veya görsel yükleyip analiz isteyebilirsin."
+        )
 
     # ----------------------
     # Mesaj geçmişi göster
@@ -1288,9 +1430,15 @@ if st.session_state.app_mode in ["🛒 E-Ticaret Asistanı", "💼 Danışmanlı
     # ----------------------
     # Mesaj input
     # ----------------------
-    message = st.chat_input("Mesaj yazın...")
+    placeholder_text = "Mesaj yazın..."
+    if st.session_state.pending_prompt:
+        # Kullanıcı isterse hızlıca hazır prompt'u inputa kopyalayıp düzenleyebilir
+        placeholder_text = st.session_state.pending_prompt
+
+    message = st.chat_input(placeholder_text)
 
     if message:
+        st.session_state.pending_prompt = None
         st.session_state.chat_history.append({"role": "user", "content": message})
         with st.chat_message("user"):
             st.write(message)
@@ -1330,6 +1478,7 @@ st.markdown(
     "<div class='custom-footer'>Qelyon AI Stüdyo © 2025 | Developed by Alper</div>",
     unsafe_allow_html=True,
 )
+
 # ==========================================================
 # ========== GLOBAL HATA YÖNETİMİ & GÜVENLİ KAPATMA =========
 # ==========================================================
@@ -1425,11 +1574,10 @@ def get_active_logo():
 
 try:
     global_error_boundary()
-except Exception as e:
+except Exception:
     print("GENEL HATA:", traceback.format_exc())
     st.error("⚠️ Kritik bir hata oluştu. Sayfayı yenilemeyi deneyin.")
 
 # NOT:
-# Bu dosya artık modüler, güvenli, yüksek kaliteli stüdyo & E-ticaret & danışmanlık
-# modlarıyla tam entegre Qelyon AI Stüdyo uygulamasının kapanış bölümüdür.
-
+# Bu dosya; stüdyo, e-ticaret, danışmanlık ve psikolojik danışmanlık modlarıyla
+# tam entegre Qelyon AI Stüdyo uygulamasının güncel sürümüdür.

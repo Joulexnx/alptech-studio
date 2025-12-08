@@ -306,93 +306,20 @@ def inc_stat(key: str, step: int = 1):
 # TEMA LİSTESİ (E-TİCARET ODAKLI)
 # ===========================
 TEMA_LISTESI = {
-    # Basit arka plan işlemleri
-    "🧹 Arka Planı Kaldır (Şeffaf)": "ACTION_TRANSPARENT",
-    "⬜ Saf Beyaz Fon (E-ticaret)": "ACTION_WHITE",
-    "⬛ Saf Siyah Fon (Premium)": "ACTION_BLACK",
-    "🍦 Krem / Bej Fon (Soft)": "ACTION_BEIGE",
-    # E-ticaret & katalog
-    "🛒 Katalog Stüdyosu (Beyaz)": (
-        "Clean e-commerce product photo of the object on a pure white seamless background. "
-        "Soft diffused studio lighting, natural soft shadow under the product, Amazon listing style, 4k, ultra sharp."
-    ),
-    "📦 Ürün Kartı (Yumuşak Gölge)": (
-        "E-commerce catalog shot of the object on a very light grey to white gradient background. "
-        "Soft drop shadow, subtle reflection, minimalistic high-end cosmetics style, centered composition."
-    ),
-    # Sosyal medya presetleri
-    "📲 Instagram Postu 1080x1350": (
-        "Vertical 4:5 ratio (1080x1350) Instagram post of the object. "
-        "Modern gradient background, bold soft shadows, high contrast, ready to post layout with focus on the product."
-    ),
-    "📱 Story 1080x1920": (
-        "Vertical 9:16 ratio (1080x1920) Instagram story style image of the object. "
-        "Room for text above and below, clean gradient background, bright and eye-catching design."
-    ),
-    "🎯 Reklam Görseli (Kampanya)": (
-        "Advertising key visual with the object in the center. "
-        "Dynamic lighting, gradient background, plenty of negative space for campaign text on the sides, "
-        "professional marketing look."
-    ),
-    "▶️ YouTube Thumbnail": (
-        "16:9 ratio YouTube thumbnail style design featuring the object on the right side with bold light background, "
-        "strong contrast, cinematic shading and room for title text on the left."
-    ),
-    # Sahne / ortamlar
-    "🌫 Nötr Gri Fon (Universal)": (
-        "Professional product photography of the object on a neutral light grey seamless background. "
-        "Soft softbox lighting, gentle vignette, clean catalogue style, 4k."
-    ),
-    "💡 Profesyonel Stüdyo (3 Nokta Işık)": (
-        "High-end studio product photo, object on an infinity curve background. "
-        "Three-point lighting setup, key light, fill light, and rim light, ultra sharp focus, commercial advertising style."
-    ),
-    "🌑 Karanlık Stüdyo (Drama)": (
-        "Professional product shot on a matte black non-reflective background. "
-        "Dramatic rim lighting, strong contrast, subtle reflection under the product, cinematic mood."
-    ),
-    "🏛️ Mermer Zemin (Lüks)": (
-        "Luxury product photo of the object placed on a polished white carrara marble podium. "
-        "Soft cinematic lighting, realistic shadows, depth of field, 8k, luxury aesthetic."
-    ),
-    "🪵 Ahşap Zemin (Doğal)": (
-        "Product photo of the object on a textured warm oak wooden table. "
-        "Soft daylight coming from the side, blurred cozy home background, natural lifestyle look."
-    ),
-    "🧱 Beton Zemin (Modern)": (
-        "Minimalist product photo of the object on a raw grey concrete surface. "
-        "Hard directional light, high contrast, modern industrial style, 8k."
-    ),
-    "🛋️ İpek Kumaş (Zarif)": (
-        "Elegant product photo of the object resting on flowing champagne-colored silk fabric. "
-        "Soft studio lighting, fashion editorial look, shallow depth of field."
-    ),
-    "🏠 Modern Salon Ortamı": (
-        "Lifestyle product photo of the object on a modern living room coffee table. "
-        "Soft natural daylight from a large window, blurred sofa and decor in the background, Scandinavian interior style."
-    ),
-    "🍽 Mutfak Tezgahı (Gıda / Mutfak Ürünü)": (
-        "Product photo of the object on a bright kitchen countertop. "
-        "White cabinets and soft daylight, slightly blurred background, fresh and clean cooking atmosphere."
-    ),
-    "🛁 Banyo Tezgahı (Kozmetik)": (
-        "Cosmetics-style product photo of the object on a light bathroom counter with a blurred mirror and tiles in the background. "
-        "Soft top lighting, clean spa-like aesthetic."
-    ),
-    "🌿 Doğal Dış Mekan (Yeşillik)": (
-        "Product photo of the object outdoors on a simple neutral surface with blurred green plants and trees in the background. "
-        "Soft natural daylight, bokeh background, fresh and organic feeling."
-    ),
-    "🌅 Gün Batımı Tonları (Sıcak)": (
-        "Product photo of the object with a warm gradient background in sunset colors (orange, pink, purple). "
-        "Soft cinematic lighting, gentle reflections, premium cosmetic ad style."
-    ),
-    "🍬 Pastel Gradient (Minimal)": (
-        "Minimal product photo of the object standing on a soft pastel gradient background "
-        "in light pink, lilac and blue tones. Clean composition, subtle soft shadow."
+    "🧹 Şeffaf Arka Plan": "ACTION_TRANSPARENT",
+
+    "⬜ Beyaz Arka Plan (Profesyonel Gölgeli)": "ACTION_WHITE_PRO",
+
+    "⬛ Siyah Arka Plan (Premium)": "ACTION_BLACK",
+
+    "🍦 Bej Arka Plan (Soft)": "ACTION_BEIGE",
+
+    "✨ Profesyonel (AI Studio — Soft Shadow)": (
+        "Ultra clean e-commerce studio shot of the product on a pure white seamless background. "
+        "Soft shadow, subtle reflection, 3-point professional lighting, high dynamic range, "
+        "premium catalog style, photorealistic, crisp details, extremely sharp."
     ),
 }
-
 # ===========================
 # ZAMAN & HAVA FONKSİYONLARI
 # ===========================
@@ -872,32 +799,60 @@ def sahne_olustur(client: OpenAI, urun_resmi: Image.Image, prompt_text: str):
 
 
 def yerel_islem(urun_resmi: Image.Image, islem_tipi: str):
-    max_boyut = 1200
+    max_boyut = 1400
     if urun_resmi.width > max_boyut or urun_resmi.height > max_boyut:
         urun_resmi.thumbnail((max_boyut, max_boyut), Image.Resampling.LANCZOS)
 
-    try:
-        temiz_urun = remove(
-            urun_resmi,
-            alpha_matting=True,
-            alpha_matting_foreground_threshold=240,
-            alpha_matting_background_threshold=10,
-        )
-    except Exception as e:
-        print("rembg hata, orijinal resim kullanılıyor:", e)
-        temiz_urun = urun_resmi
+    temiz = remove_bg_high_quality(urun_resmi)
 
+    # Şeffaf
     if islem_tipi == "ACTION_TRANSPARENT":
-        return temiz_urun
+        return temiz
+
+    # Arka plan renkleri
     renkler = {
-        "ACTION_WHITE": (255, 255, 255),
         "ACTION_BLACK": (0, 0, 0),
-        "ACTION_BEIGE": (245, 245, 220),
+        "ACTION_BEIGE": (245, 240, 225),
     }
-    bg_color = renkler.get(islem_tipi, (255, 255, 255))
-    bg = Image.new("RGB", temiz_urun.size, bg_color)
-    bg.paste(temiz_urun, mask=temiz_urun if temiz_urun.mode in ("RGBA", "LA") else None)
-    return bg
+
+    # Profesyonel BEYAZ ARKA PLAN
+    if islem_tipi == "ACTION_WHITE_PRO":
+        bg = Image.new("RGB", temiz.size, (255, 255, 255))
+
+        # Soft gölge oluştur
+        shadow = temiz.split()[3]
+        shadow = shadow.filter(ImageFilter.GaussianBlur(radius=25))
+
+        shadow_layer = Image.new("RGBA", temiz.size, (0, 0, 0, 90))
+        shadow_layer.putalpha(shadow)
+
+        result = Image.new("RGBA", temiz.size)
+        result.paste(bg, (0, 0))
+        result.alpha_composite(shadow_layer)
+        result.alpha_composite(temiz)
+
+        # Hafif yansıma efekti
+        reflection = temiz.transpose(Image.FLIP_TOP_BOTTOM)
+        fade_mask = Image.linear_gradient("L").resize(temiz.size)
+        fade_mask = fade_mask.point(lambda x: int(x * 0.25))
+
+        reflection_layer = Image.new("RGBA", temiz.size)
+        reflection_layer.paste(reflection, (0, 0), reflection)
+        reflection_layer.putalpha(fade_mask)
+
+        combined = Image.new("RGBA", temiz.size)
+        combined.alpha_composite(result)
+        combined.alpha_composite(reflection_layer, (0, temiz.size[1] // 3))
+
+        return combined
+
+    # Diğer basit renk temaları
+    if islem_tipi in renkler:
+        bg = Image.new("RGB", temiz.size, renkler[islem_tipi])
+        bg.paste(temiz, mask=temiz.split()[3])
+        return bg
+
+    return temiz
 
 # ===========================
 # SIDEBAR (KONUŞMA GEÇMİŞİ & PROMPT KÜTÜPHANESİ)
@@ -1406,3 +1361,4 @@ st.markdown(
     "<div class='custom-footer'>ALPTECH AI Stüdyo © 2025 | Developed by Alper</div>",
     unsafe_allow_html=True,
 )
+

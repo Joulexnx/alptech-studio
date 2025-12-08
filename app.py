@@ -828,7 +828,7 @@ def sidebar_ui():
             )
             st.session_state.current_session = selected
             st.session_state.chat_history = st.session_state.chat_sessions[selected]
-            st.rerun())
+            st.rerun()
 
     st.sidebar.markdown("---")
 
@@ -1303,6 +1303,7 @@ st.markdown(
     "<div class='custom-footer'>ALPTECH AI Stüdyo © 2025 | Developed by Alper</div>",
     unsafe_allow_html=True,
 )
+
 
 
 

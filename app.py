@@ -623,9 +623,18 @@ def get_weather_forecast_answer(location: str | None = None, days: int = 7) -> s
         return "7 günlük hava tahmini alınırken bir sorun oluştu; lütfen daha sonra tekrar dene."
 
 # ===========================
-# WIKIPEDIA / GÜVENLİK / CHAT yardımcı (mevcut kod – değiştirmedik)
+# WIKIPEDIA / GÜVENLİK / CHAT yardımcı (PATCH v3.2.2)
 # ===========================
-GENEL_BILGI_TETIKLERI = ["kimdir","nedir","ne zaman","hangi yıl","hangi yil","tarih","kuruldu","başkenti","baskenti","takımı","takimi","ülke","ulke","şehir","sehir"]
+import re
+
+# 'tarih' (date) kaldırıldı; history varyantları eklendi.
+GENEL_BILGI_TETIKLERI = [
+    "kimdir", "nedir", "ne zaman", "hangi yıl", "hangi yil",
+    "kuruldu", "kuruluşu", "kurulusu",
+    "tarihi", "tarihçesi", "tarihcesi", "geçmişi", "gecmisi",
+    "başkenti", "baskenti", "takımı", "takimi",
+    "ülke", "ulke", "şehir", "sehir"
+]
 
 def wiki_gerekli_mi(soru: str) -> bool:
     if not HAS_WIKIPEDIA:
@@ -660,7 +669,8 @@ def moderate_content(text: str) -> str | None:
     return None
 
 def custom_identity_interceptor(user_message: str) -> str | None:
-    triggers = ["seni kim yaptı","seni kim yarattı","kim geliştirdi","kimsin","sen kimsin","who created you","who made you","who built you","who are you"]
+    triggers = ["seni kim yaptı","seni kim yarattı","kim geliştirdi","kimsin","sen kimsin",
+                "who created you","who made you","who built you","who are you"]
     msg = user_message.lower().strip()
     if any(t in msg for t in triggers):
         return ("Beni **ALPTECH AI** ekibi geliştirdi 🚀\n\n"
@@ -668,22 +678,64 @@ def custom_identity_interceptor(user_message: str) -> str | None:
                 "ve metin tarafında da markanı güçlendirmek. Her zaman yanındayım. 🙂")
     return None
 
+# ---- yeni yardımcılar ----
+def is_time_query(msg: str) -> bool:
+    """Gerçek zaman/tarih isteği; 'tarihi/tarihçesi/geçmişi' içerirse false.
+    Neden: 'tarih' (date) ile 'tarihi' (history) ayrımı.
+    """
+    m = msg.lower().strip()
+
+    # net kalıplar
+    explicit = [
+        r"\bsaat kaç\b", r"\bşu an saat\b", r"\bsu an saat\b", r"\bşimdi saat\b", r"\bsimdi saat\b",
+        r"\bbugünün tarihi\b", r"\bbugunun tarihi\b", r"\bbugün tarih\b", r"\bbugun tarih\b",
+        r"\bgüncel tarih\b", r"\btarih nedir\b", r"\btarih ve saat\b", r"\bsaat ve tarih\b"
+    ]
+    if any(re.search(p, m) for p in explicit):
+        return True
+
+    # tam kelime eşleşmesi (history sinyali yoksa)
+    if re.search(r"\b(saat|tarih)\b", m):
+        if re.search(r"\b(tarihi|tarihçesi|tarihcesi|geçmişi|gecmisi|kuruluşu|kurulusu)\b", m):
+            return False
+        return True
+
+    return False
+
+def is_history_like(msg: str) -> bool:
+    """History sinyali varsa True (örn. 'Ankara'nın tarihi', 'X'in tarihçesi')."""
+    m = msg.lower()
+    return bool(re.search(r"\b(tarihi|tarihçesi|tarihcesi|geçmişi|gecmisi|kuruluşu|kurulusu)\b", m))
+
 def custom_utility_interceptor(user_message: str) -> str | None:
-    msg = user_message.lower()
-    if "saat" in msg or "tarih" in msg:
+    """Kestirmeler: önce history filtresi, sonra zaman, sonra wiki/hava."""
+    msg_lc = user_message.lower()
+
+    # 1) History benzeri içerik → kestirmeden kaç, LLM/Wikipedia yanıtlasın
+    if is_history_like(msg_lc):
+        return None
+
+    # 2) Zaman/tarih
+    if is_time_query(msg_lc):
         return get_time_answer()
-    if HAS_WIKIPEDIA and (msg.startswith("wiki ") or msg.startswith("wikipedia ")):
+
+    # 3) Açık Wikipedia komutu
+    if HAS_WIKIPEDIA and (msg_lc.startswith("wiki ") or msg_lc.startswith("wikipedia ")):
         konu = user_message.split(" ", 1)[1].strip() if " " in user_message else ""
         if not konu:
             return "Hangi konu için Wikipedia özeti istediğini yazar mısın? Örn: `wiki Beşiktaş JK`"
         ozet = wiki_ozet_cek(konu, cumle_sayisi=4)
         return f"🔎 Wikipedia özeti – **{konu}**:\n\n{ozet}" if ozet else f"'{konu}' için Türkçe Wikipedia özetine ulaşamadım."
-    if "7 günlük hava" in msg or "7 gunluk hava" in msg or "haftalık hava" in msg:
+
+    # 4) Hava durumu kestirmeleri
+    if "7 günlük hava" in msg_lc or "7 gunluk hava" in msg_lc or "haftalık hava" in msg_lc:
         city = extract_city_from_message(user_message) or WEATHER_DEFAULT_CITY
         return get_weather_forecast_answer(city)
-    if "hava" in msg or "hava durumu" in msg or "hava nasıl" in msg:
+
+    if "hava" in msg_lc or "hava durumu" in msg_lc or "hava nasıl" in msg_lc or "hava nasil" in msg_lc:
         city = extract_city_from_message(user_message) or WEATHER_DEFAULT_CITY
         return get_weather_answer(city)
+
     return None
 
 def build_system_talimati():
@@ -719,12 +771,15 @@ def normal_sohbet(client: OpenAI):
         else:
             messages.append({"role": "assistant", "content": msg["content"]})
 
+    # Wikipedia tetikleyici: artık 'tarihi/tarihçesi/...' yakalanır, 'tarih' (date) değil
     if last_user_message and wiki_gerekli_mi(last_user_message):
         wiki_text = wiki_ozet_cek(last_user_message, cumle_sayisi=4)
         if wiki_text:
-            wiki_system = ("Aşağıda kullanıcının sorusuyla ilgili Wikipedia'dan otomatik alınmış kısa bir özet var. "
-                           "Bu bilgiler %100 doğru olmak zorunda değil; yanıt üretirken sadece referans olarak kullan.\n\n"
-                           f"Wikipedia özeti:\n{wiki_text}")
+            wiki_system = (
+                "Aşağıda kullanıcının sorusuyla ilgili Wikipedia'dan otomatik alınmış kısa bir özet var. "
+                "Bu bilgiler %100 doğru olmak zorunda değil; yanıt üretirken sadece referans olarak kullan.\n\n"
+                f"Wikipedia özeti:\n{wiki_text}"
+            )
             messages.append({"role": "system", "content": wiki_system})
 
     if last_user_message is not None:
@@ -733,7 +788,7 @@ def normal_sohbet(client: OpenAI):
             b64 = base64.b64encode(img_bytes).decode("utf-8")
             content = [
                 {"type": "text", "text": last_user_message},
-                {"type": "image_url","image_url": {"url": f"data:image/png;base64,{b64}"}},
+                {"type": "image_url", "image_url": {"url": f"data:image/png;base64,{b64}"}},
             ]
             messages.append({"role": "user", "content": content})
         else:
@@ -753,6 +808,7 @@ def normal_sohbet(client: OpenAI):
         st.error("⚠️ Sohbet API çağrısında hata. Konsolu kontrol et.")
         print("Chat API HATA:", e, tb)
         return "Üzgünüm, sohbet hizmetinde şu an bir sorun var."
+
 
 # ===========================
 # GÖRSEL İŞLEME — FIX & PRO
@@ -1322,4 +1378,5 @@ elif st.session_state.app_mode == "💬 Sohbet Modu (Genel Asistan)":
 # FOOTER
 # ===========================
 st.markdown("<div class='custom-footer'>ALPTECH AI Stüdyo © 2025 | Developed by Alper</div>", unsafe_allow_html=True)
+
 

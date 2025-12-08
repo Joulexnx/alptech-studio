@@ -753,7 +753,7 @@ def normal_sohbet(client: OpenAI, profile: Literal["ecom", "consult", "psy"]) ->
         b64 = base64.b64encode(img_bytes).decode("utf-8")
         content = [
             {"type": "text", "text": last_user},
-            {"type": "image_url", "image_url": {"url": f"data:image/png;base64,{b64}"}}.
+            {"type": "image_url", "image_url": {"url": f"data:image/png;base64,{b64}"}},
         ]
         messages.append({"role": "user", "content": content})
 
@@ -1581,3 +1581,4 @@ except Exception:
 # NOT:
 # Bu dosya; stüdyo, e-ticaret, danışmanlık ve psikolojik danışmanlık modlarıyla
 # tam entegre Qelyon AI Stüdyo uygulamasının güncel sürümüdür.
+

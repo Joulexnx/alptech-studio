@@ -9,6 +9,11 @@ ALPTECH AI Stüdyo — v3.1 (Profesyonel preset & mask düzeltmeleri)
 """
 
 from __future__ import annotations
+import io, requests
+from typing import Tuple
+from PIL import Image, ImageFilter, ImageDraw, ImageOps, ImageChops
+from rembg import remove
+from openai import OpenAI
 
 import base64
 import re
@@ -283,17 +288,212 @@ def inc_stat(key: str, step: int = 1):
 # ===========================
 # TEMA LİSTESİ (PRO)
 # ===========================
+# -------------------------
+# Preset haritası (güncel)
+# -------------------------
 TEMA_LISTESI = {
     "🧹 Şeffaf Arka Plan (HQ)": "ACTION_TRANSPARENT",
+    "✨ Profesyonel Stüdyo (Ürün kilitli) [Önerilen]": "ACTION_PRO_STUDIO",
     "⬜ Beyaz Arka Plan · Profesyonel gölge": "ACTION_WHITE_PRO",
     "⬛ Siyah Arka Plan · Premium": "ACTION_BLACK",
     "🍦 Bej Arka Plan · Soft": "ACTION_BEIGE",
-    "✨ Profesyonel AI Stüdyo (Ürün korunur)": (
-        "Ultra clean e-commerce studio shot of the product on a pure white seamless background, "
-        "soft natural shadow, subtle ground reflection, 3-point professional lighting, HDR. "
-        "Preserve the product exactly as-is (no color or geometry changes). Photorealistic, crisp details."
-    ),
+    "🧪 Yaratıcı AI Arkaplan (Deneysel)": "AI_CREATIVE",  # ürün kilitli + AI sadece arka plan
 }
+
+# -------------------------
+# Yardımcılar
+# -------------------------
+def _to_png_bytes(im: Image.Image) -> bytes:
+    buf = io.BytesIO(); im.save(buf, "PNG"); buf.seek(0); return buf.getvalue()
+
+def _binary_mask(alpha: Image.Image, thresh: int = 4, dilate: int = 10) -> Image.Image:
+    """Ürün kenarında kanama olmasın diye sertleştirip genişlet."""
+    m = alpha.convert("L").filter(ImageFilter.MedianFilter(3))
+    m = m.point(lambda p: 255 if p > thresh else 0)
+    for _ in range(max(dilate, 0)):
+        m = m.filter(ImageFilter.MaxFilter(3))
+    return m
+
+def remove_bg_high_quality(img: Image.Image) -> Image.Image:
+    """Yüksek kaliteli arka plan temizleme ve maske rafine."""
+    cut = remove(
+        img,
+        alpha_matting=True,
+        alpha_matting_foreground_threshold=240,
+        alpha_matting_background_threshold=10,
+        alpha_matting_erode_size=1,
+    )
+    if cut.mode != "RGBA":
+        cut = cut.convert("RGBA")
+    a = cut.split()[3]
+    a_refined = _binary_mask(a, thresh=4, dilate=3).filter(ImageFilter.GaussianBlur(0.5))
+    out = Image.new("RGBA", cut.size, (0, 0, 0, 0))
+    out.paste(cut.convert("RGB"), (0, 0), a_refined)
+    return out
+
+def _center_on_square(im: Image.Image, side: int = 1024) -> Image.Image:
+    """Ürünü kare kanvasa ortala."""
+    can = Image.new("RGBA", (side, side), (0, 0, 0, 0))
+    im = im.copy()
+    im.thumbnail((int(side*0.85), int(side*0.85)), Image.Resampling.LANCZOS)
+    x = (side - im.width)//2; y = (side - im.height)//2
+    can.paste(im, (x, y), im)
+    return can
+
+def _contact_shadow(alpha: Image.Image, strength: int = 120) -> Image.Image:
+    """Ürünün altında yumuşak temas gölgesi üret."""
+    a = alpha.convert("L")
+    box = a.getbbox()
+    if not box:
+        return Image.new("L", a.size, 0)
+    w = box[2] - box[0]
+    h = max(8, int((box[3]-box[1]) * 0.18))
+    pad = max(12, w // 6)
+    sh = Image.new("L", (w + pad, h), 0)
+    d = ImageDraw.Draw(sh); d.ellipse((0, 0, sh.width, sh.height), fill=strength)
+    sh = sh.filter(ImageFilter.GaussianBlur(radius=max(10, h//2)))
+    out = Image.new("L", a.size, 0)
+    out.paste(sh, (box[0] - pad//2, box[3] - int(h*0.4)))
+    return out
+
+def _reflection(clip: Image.Image, fade: int = 220) -> Image.Image:
+    """Hafif zemin yansıması."""
+    a = clip.split()[3]
+    box = a.getbbox()
+    if not box:
+        return Image.new("RGBA", clip.size, (0, 0, 0, 0))
+    crop = clip.crop(box)
+    ref = ImageOps.flip(crop)
+    # Alt kısımdan yukarı doğru şeffaflaştır
+    grad = Image.linear_gradient("L").resize((1, ref.height))
+    grad = ImageOps.invert(grad).point(lambda p: int(p * (fade/255)))
+    grad = grad.resize(ref.size)
+    ref.putalpha(grad)
+    canvas = Image.new("RGBA", clip.size, (0, 0, 0, 0))
+    canvas.paste(ref, (box[0], box[3] + 4), ref)
+    return canvas
+
+# -------------------------
+# Yerel (AI'siz) kompozit
+# -------------------------
+def pro_studio_composite(cutout_rgba: Image.Image, bg: str = "white",
+                         do_shadow: bool = True, do_reflection: bool = True) -> Image.Image:
+    """Sonsuz arka plan + temas gölgesi + hafif refleksiyon (ürün %100 korunur)."""
+    side = 1024
+    obj = _center_on_square(cutout_rgba, side)
+    a = obj.split()[3]
+
+    # Arka planlar
+    if bg == "white":
+        # çok hafif dikey gradient
+        base = Image.new("RGB", (side, side), (255, 255, 255))
+        overlay = Image.new("L", (1, side), 0)
+        overlay = overlay.point(lambda p: int(p*0.08)).resize((side, side))
+        base = ImageChops.screen(base, Image.merge("RGB", (overlay, overlay, overlay)))
+        base = base.convert("RGBA")
+    elif bg == "black":
+        base = Image.new("RGBA", (side, side), (0, 0, 0, 255))
+    elif bg == "beige":
+        base = Image.new("RGBA", (side, side), (245, 240, 225, 255))
+    else:
+        base = Image.new("RGBA", (side, side), (255, 255, 255, 255))
+
+    # Gölge
+    if do_shadow:
+        sh_mask = _contact_shadow(a, strength=120)
+        shadow_rgba = Image.new("RGBA", (side, side), (0, 0, 0, 0))
+        shadow_rgba.putalpha(sh_mask)
+
+    # Refleksiyon
+    refl = _reflection(obj) if do_reflection else Image.new("RGBA", (side, side), (0, 0, 0, 0))
+
+    out = Image.new("RGBA", (side, side), (0, 0, 0, 0))
+    out.alpha_composite(base)
+    if do_shadow:
+        out.alpha_composite(shadow_rgba)
+    out.alpha_composite(refl)
+    out.alpha_composite(obj)  # ürün en sonda
+    return out
+
+# -------------------------
+# AI arka plan (ürün hard lock)
+# -------------------------
+def creative_ai_scene_strict(client: OpenAI, cutout_rgba: Image.Image, user_prompt: str) -> Image.Image | None:
+    """
+    AI sadece ARKA PLANI üretir. Son adımda orijinal ürün tekrar yapıştırılır (hard lock).
+    Böylece model ürünü asla değiştiremez.
+    """
+    # 1) 1024 tuvalde ürün
+    obj = _center_on_square(cutout_rgba, 1024)
+    alpha = obj.split()[3]
+    # 2) Maske — ürün opak (koru), arka plan transparan (AI boyasın)
+    hard_mask = Image.new("RGBA", obj.size, (255, 255, 255, 255))
+    hard_mask.putalpha(_binary_mask(alpha, thresh=4, dilate=10))  # geniş koruma
+
+    # 3) Prompt
+    safe_prompt = (
+        "Generate ONLY a clean studio BACKGROUND behind the product: pure white seamless backdrop, "
+        "soft natural shadow and subtle floor reflection. "
+        "Do NOT modify the product in any way; keep its shape, color and texture intact."
+    )
+    if user_prompt:
+        safe_prompt += " " + user_prompt.strip()
+
+    try:
+        resp = client.images.edit(
+            image=("image.png", _to_png_bytes(obj), "image/png"),
+            mask=("mask.png", _to_png_bytes(hard_mask), "image/png"),
+            prompt=safe_prompt,
+            n=1,
+            size="1024x1024",
+        )
+        # 4) Çıktıyı indir
+        url = resp.data[0].url  # type: ignore[attr-defined]
+        bin_img = requests.get(url, timeout=40).content
+        gen = Image.open(io.BytesIO(bin_img)).convert("RGBA")
+        # 5) ÜRÜNÜ TEKRAR YAPIŞTIR (hard lock)
+        final_img = gen.copy()
+        final_img.alpha_composite(obj)  # obj zaten şeffaf arka planlı
+        return final_img
+    except Exception:
+        return None
+
+# -------------------------
+# Preset iş akışı
+# -------------------------
+def yerel_islem(urun_resmi: Image.Image, islem_tipi: str) -> Image.Image:
+    """Şeffaf / beyaz / siyah / bej ve profesyonel stüdyo preset'leri."""
+    # 0) HQ cutout
+    cut = remove_bg_high_quality(urun_resmi)
+
+    if islem_tipi == "ACTION_TRANSPARENT":
+        return cut
+
+    if islem_tipi == "ACTION_PRO_STUDIO":
+        return pro_studio_composite(cut, bg="white", do_shadow=True, do_reflection=True)
+
+    bg_map = {
+        "ACTION_WHITE_PRO": ("white", True, False),
+        "ACTION_BLACK": ("black", True, False),
+        "ACTION_BEIGE": ("beige", True, False),
+    }
+    if islem_tipi in bg_map:
+        bg, sh, refl = bg_map[islem_tipi]
+        return pro_studio_composite(cut, bg=bg, do_shadow=sh, do_reflection=refl)
+
+    # Varsayılan: beyaz
+    return pro_studio_composite(cut, bg="white", do_shadow=True, do_reflection=False)
+
+# -------------------------
+# “Profesyonel AI” (Deneysel) çağrısı
+# -------------------------
+def sahne_olustur(client: OpenAI, urun_resmi: Image.Image, prompt_text: str) -> Image.Image | None:
+    """
+    Mevcut UI 'AI sahne' butonunuzu buna bağlayın.
+    Ürün önce HQ kesilir, AI sadece arka planı üretir, ürün en sonda tekrar yapışır.
+    """
+    cut = remove_bg_high_quality(urun_resmi)
+    return creative_ai_scene_strict(client, cut, prompt_text or "")
 
 # ===========================
 # ZAMAN & HAVA — (mevcut kodun tamamı aynı)
@@ -1122,3 +1322,4 @@ elif st.session_state.app_mode == "💬 Sohbet Modu (Genel Asistan)":
 # FOOTER
 # ===========================
 st.markdown("<div class='custom-footer'>ALPTECH AI Stüdyo © 2025 | Developed by Alper</div>", unsafe_allow_html=True)
+

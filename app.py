@@ -1,490 +1,13 @@
 """
 File: app.py
-ALPTECH AI Stüdyo — v4.0 (E-Ticaret Pro, GPT-5.1 Ready)
-"""
-
-from __future__ import annotations
-
-import base64
-import re
-import traceback
-from datetime import datetime
-from io import BytesIO
-from zoneinfo import ZoneInfo
-
-import requests
-import streamlit as st
-from openai import OpenAI
-from PIL import Image, ImageOps, ImageFilter
-from rembg import remove
-
-# ===========================
-# GÜVENLİ AYARLAR & KONFIG
-# ===========================
-if "OPENAI_API_KEY" in st.secrets:
-    SABIT_API_KEY = st.secrets["OPENAI_API_KEY"]
-else:
-    SABIT_API_KEY = None
-    st.warning("⚠️ OPENAI_API_KEY tanımlı değil. Sohbet devre dışı.")
-
-DEFAULT_MODEL = st.secrets.get("OPENAI_MODEL", "gpt-5.1")
-
-# OpenWeather
-WEATHER_API_KEY = st.secrets.get("WEATHER_API_KEY", "5f9ee20a060a62ba9cb79d4a048395d9")
-WEATHER_DEFAULT_CITY = st.secrets.get("WEATHER_DEFAULT_CITY", "İstanbul")
-
-# Logo yükleme
-LOGO_PATH = "ALPTECHAI.png"
-try:
-    with open(LOGO_PATH, "rb") as lf:
-        LOGO_B64 = base64.b64encode(lf.read()).decode("utf-8")
-except:
-    LOGO_B64 = None
-
-st.set_page_config(
-    page_title="ALPTECH AI Stüdyo",
-    page_icon="🤖",
-    layout="wide",
-    initial_sidebar_state="expanded",
-)
-# ===========================
-# THEME & CSS
-# ===========================
-def get_theme(is_dark: bool):
-    if is_dark:
-        return {
-            "bg": "#0b0b0c",
-            "card_bg": "rgba(255,255,255,0.04)",
-            "text": "#e8eef6",
-            "subtext": "#b9c6d6",
-            "accent": "#0a84ff",
-            "button_hover": "#0066cc",
-            "border": "rgba(255,255,255,0.08)",
-            "input_bg": "rgba(255,255,255,0.03)",
-        }
-    else:
-        return {
-            "bg": "#f6f7f9",
-            "card_bg": "rgba(255,255,255,0.7)",
-            "text": "#0b1220",
-            "subtext": "#596274",
-            "accent": "#007aff",
-            "button_hover": "#0061d5",
-            "border": "rgba(12,17,25,0.06)",
-            "input_bg": "rgba(255,255,255,0.9)",
-        }
-
-
-def apply_apple_css(tema):
-    st.markdown(
-        f"""
-    <style>
-    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap');
-
-    body, html, .stApp {{
-        font-family: -apple-system, BlinkMacSystemFont, "Inter";
-        background: {tema['bg']};
-        color: {tema['text']};
-    }}
-
-    #MainMenu, footer, header, [data-testid="stToolbar"] {{
-        visibility: hidden !important;
-    }}
-
-    .block-container {{
-        padding-top: 1rem;
-        padding-bottom: 4rem;
-        max-width: 1280px;
-    }}
-
-    .image-container {{
-        background: {tema['card_bg']};
-        backdrop-filter: blur(14px);
-        border-radius: 18px;
-        padding: 14px;
-        border: 1px solid {tema['border']};
-        box-shadow: 0 6px 24px rgba(2,6,23,0.12);
-    }}
-
-    .stButton>button {{
-        background-color: {tema['accent']} !important;
-        color: white !important;
-        border-radius: 12px !important;
-        padding: 9px 16px !important;
-        font-weight: 600;
-    }}
-
-    .stButton>button:hover {{
-        background-color: {tema['button_hover']} !important;
-        transform: translateY(-2px);
-    }}
-
-    /* Chat balonları */
-    [data-testid="stChatMessage"] {{
-        border-radius: 16px;
-        padding: 6px 12px;
-        background: {tema['card_bg']};
-        border: 1px solid {tema['border']};
-    }}
-
-    [data-testid="stChatInput"] textarea {{
-        background: {tema['input_bg']} !important;
-        color: {tema['text']} !important;
-    }}
-
-    textarea::placeholder {{
-        color: {tema['subtext']} !important;
-    }}
-    </style>
-    """,
-        unsafe_allow_html=True,
-    )
-def inject_voice_js():
-    st.markdown("""
-<script>
-(function() {
-  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-  if (!SpeechRecognition) { return; }
-
-  function addMic() {
-    const root = window.parent.document.querySelector('[data-testid="stChatInput"]');
-    if (!root) return;
-
-    if (root.querySelector('#mic-btn')) return;
-
-    const textarea = root.querySelector('textarea');
-    if (!textarea) return;
-
-    const btn = document.createElement('button');
-    btn.id = 'mic-btn';
-    btn.innerText = '🎤';
-    btn.style.marginLeft = '8px';
-    btn.style.borderRadius = '999px';
-    btn.style.background = '#0a84ff';
-    btn.style.color = 'white';
-    btn.style.border = 'none';
-    btn.style.padding = '4px 10px';
-    btn.style.cursor = 'pointer';
-
-    const rec = new SpeechRecognition();
-    rec.lang = 'tr-TR';
-    rec.onresult = (event) => {
-      const text = event.results[0][0].transcript;
-      textarea.value = textarea.value + " " + text;
-      textarea.dispatchEvent(new Event('input', { bubbles: true }));
-    };
-
-    btn.onclick = () => rec.start();
-    root.appendChild(btn);
-  }
-
-  setInterval(addMic, 1500);
-})();
-</script>
-""", unsafe_allow_html=True)
-# SESSION STATE
-if "sonuc_gorseli" not in st.session_state:
-    st.session_state.sonuc_gorseli = None
-
-if "chat_sessions" not in st.session_state:
-    st.session_state.chat_sessions = {}
-
-if "current_session" not in st.session_state:
-    st.session_state.current_session = "Oturum 1"
-
-if "chat_history" not in st.session_state:
-    st.session_state.chat_history = [
-        {"role": "assistant", "content": "Merhaba! Hangi modu kullanmak istersin?"}
-    ]
-# ===========================
-# ANALYTICS HELPER
-# ===========================
-def inc_stat(key: str, step: int = 1):
-    if "analytics" not in st.session_state:
-        return
-    if key not in st.session_state.analytics:
-        st.session_state.analytics[key] = 0
-    st.session_state.analytics[key] += step
-
-
-# ===========================
-# E-TİCARET TEMA & PRESET LİSTESİ
-# ===========================
-TEMA_LISTESI = {
-    "🧹 Arka Planı Kaldır (Şeffaf)": "ACTION_TRANSPARENT",
-    "⬜ Saf Beyaz Fon (E-ticaret)": "ACTION_WHITE",
-    "⬛ Saf Siyah Fon (Premium)": "ACTION_BLACK",
-    "🍦 Krem / Bej Soft Fon": "ACTION_BEIGE",
-
-    # --- Profesyonel katalog presetleri ---
-    "🛒 Katalog Stüdyo (Beyaz & Yumuşak Gölge)": (
-        "Clean e-commerce catalog shot of the object on a pure white seamless background. "
-        "Soft diffused lighting, subtle shadow, Amazon listing style, ultra-sharp."
-    ),
-    "📦 Ürün Kartı (Soft Shadow)": (
-        "High-end product photo on a light grey / white gradient background. "
-        "Soft shadow, centered composition, premium cosmetic style."
-    ),
-
-    # --- Sosyal medya presetleri ---
-    "📲 Instagram Postu 1080×1350": (
-        "Instagram 4:5 vertical post. Modern gradient background, soft shadows, "
-        "product centered, vibrant but clean style."
-    ),
-    "📱 Story 1080×1920": (
-        "16:9 vertical Instagram story layout. Smooth gradient background, space left "
-        "top & bottom for text, bright and engaging design."
-    ),
-    "🎯 Kampanya Reklamı": (
-        "Advertising key visual with the object centered. Dynamic lighting, strong "
-        "contrast, clean gradient, empty negative space for text."
-    ),
-
-    # --- YouTube / reklam ---
-    "▶️ YouTube Thumbnail (16:9)": (
-        "Cinematic lighting, strong contrast, bold colors, product on the right side "
-        "with empty space on the left for title text."
-    ),
-
-    # --- Hacimsel presetler ---
-    "🌫 Nötr Gri Fon": (
-        "Minimalistic product photo on a neutral grey seamless background. "
-        "Softbox lighting, subtle vignette, professional."
-    ),
-    "💡 3-Nokta Stüdyo Işığı": (
-        "High-end commercial product photo using 3-point lighting (key, fill, rim). "
-        "Infinity curve background, ultra-sharp."
-    ),
-    "🌑 Karanlık Stüdyo": (
-        "Dark matte black background, dramatic rim lighting, premium luxury aesthetic."
-    ),
-
-    # --- Lifestyle ortamlar ---
-    "🏛️ Mermer Zemin (Lüks)": (
-        "Product on polished white Carrara marble. Soft cinematic lighting, shallow DOF."
-    ),
-    "🪵 Ahşap Masa (Doğal)": (
-        "Product on rustic oak wooden table, side daylight, cozy blurred background."
-    ),
-    "🧱 Beton Yüzey (Modern)": (
-        "Minimal product on textured concrete surface with hard directional light."
-    ),
-    "🛋️ İpek Kumaş (Zarif)": (
-        "Object resting on champagne silk fabric. Soft reflections, editorial style."
-    ),
-    "🏠 Modern Salon": (
-        "Lifestyle shot in a Scandinavian living room with blurred decor background."
-    ),
-    "🍽 Mutfak Tezgahı": (
-        "Bright kitchen countertop, soft daylight, clean food-related composition."
-    ),
-    "🛁 Banyo Tezgahı": (
-        "Cosmetic product on bathroom countertop, blurred mirror reflections."
-    ),
-    "🌿 Doğal Dış Mekan (Yeşil Arka Plan)": (
-        "Outdoor shot with blurred greenery, natural daylight, organic mood."
-    ),
-    "🌅 Gün Batımı Gradient": (
-        "Warm gradient background in orange/pink/purple sunset tones."
-    ),
-    "🍬 Pastel Minimalist Gradient": (
-        "Pastel pink/lilac/blue gradient, subtle soft shadow, clean minimal style."
-    ),
-}
-# ===========================
-# TÜRKİYE SAATİ (WorldTimeAPI)
-# ===========================
-def fetch_tr_time() -> datetime:
-    try:
-        r = requests.get("http://worldtimeapi.org/api/timezone/Europe/Istanbul", timeout=5)
-        if r.status_code == 200:
-            data = r.json()
-            return datetime.fromisoformat(data["datetime"])
-    except:
-        pass
-
-    # Fallback — her durumda çalışır
-    return datetime.now(ZoneInfo("Europe/Istanbul"))
-
-
-def turkce_zaman_getir() -> str:
-    t = fetch_tr_time()
-    gunler = ["Pazartesi","Salı","Çarşamba","Perşembe","Cuma","Cumartesi","Pazar"]
-    aylar  = ["","Ocak","Şubat","Mart","Nisan","Mayıs","Haziran","Temmuz",
-              "Ağustos","Eylül","Ekim","Kasım","Aralık"]
-
-    return f"{t.day} {aylar[t.month]} {t.year}, {gunler[t.weekday()]}, Saat {t.strftime('%H:%M')}"
-
-
-def get_time_answer():
-    t = fetch_tr_time()
-    return f"📅 Tarih: {t.strftime('%d.%m.%Y')} — ⏱ Saat: {t.strftime('%H:%M')}"
-# ===========================
-# ŞEHİR AYIKLAMA
-# ===========================
-def extract_city_from_message(msg: str) -> str | None:
-    m = msg.lower()
-    m = re.sub(r"[^\wçğıöşü\s]", " ", m)
-    toks = [t for t in m.split() if t]
-
-    if not toks:
-        return None
-
-    # “Ankara'da hava nasıl” → Ankara
-    possible = toks[0]
-    for suf in ["'da","'de","'ta","'te","da","de","ta","te"]:
-        if possible.endswith(suf):
-            possible = possible[:-len(suf)]
-
-    return possible.strip() or None
-
-
-# ===========================
-# GEO → Koordinat bul
-# ===========================
-def resolve_city_to_coords(city: str, limit: int = 1):
-    try:
-        url = (
-            "http://api.openweathermap.org/geo/1.0/direct"
-            f"?q={city},TR&limit={limit}&appid={WEATHER_API_KEY}"
-        )
-        r = requests.get(url, timeout=5)
-        data = r.json()
-        if not data:
-            return None
-        return float(data[0]["lat"]), float(data[0]["lon"])
-    except:
-        return None
-def get_weather_answer(city: str | None = None):
-    inc_stat("weather_queries")
-
-    if city is None:
-        city = WEATHER_DEFAULT_CITY
-
-    coords = resolve_city_to_coords(city)
-    if not coords:
-        return f"'{city}' için hava durumu bulamadım. Başka bir şehir söyleyebilirsin."
-
-    lat, lon = coords
-
-    try:
-        url = (
-            "https://api.openweathermap.org/data/2.5/weather"
-            f"?lat={lat}&lon={lon}&appid={WEATHER_API_KEY}&units=metric&lang=tr"
-        )
-        r = requests.get(url, timeout=5)
-        data = r.json()
-
-        durum = data["weather"][0]["description"].capitalize()
-        t = data["main"]["temp"]
-        his = data["main"].get("feels_like", t)
-        nem = data["main"]["humidity"]
-
-        return (
-            f"📍 **{city.title()}**\n"
-            f"🌡️ Sıcaklık: **{t:.1f}°C** (Hissedilen {his:.1f}°C)\n"
-            f"☁️ Durum: {durum}\n"
-            f"💧 Nem: %{nem}\n"
-        )
-    except:
-        return "Hava durumu API şu an yanıt vermiyor. Biraz sonra tekrar deneyebilirsin."
-def get_weather_forecast_answer(city: str | None = None, days=7):
-    inc_stat("forecast_queries")
-
-    if city is None:
-        city = WEATHER_DEFAULT_CITY
-
-    coords = resolve_city_to_coords(city)
-    if not coords:
-        return f"{city} için konum çözülemedi."
-
-    lat, lon = coords
-
-    try:
-        url = (
-            "https://api.openweathermap.org/data/3.0/onecall"
-            f"?lat={lat}&lon={lon}&exclude=minutely,hourly,alerts"
-            f"&appid={WEATHER_API_KEY}&units=metric&lang=tr"
-        )
-        r = requests.get(url, timeout=5)
-        data = r.json()
-
-        lines = [f"📍 **{city.title()} için 7 Günlük Hava Tahmini:**\n"]
-        for d in data["daily"][:days]:
-            dt = datetime.fromtimestamp(d["dt"], ZoneInfo("Europe/Istanbul"))
-            tarih = dt.strftime("%d.%m.%Y %a")
-
-            lines.append(
-                f"- **{tarih}** — {d['weather'][0]['description'].capitalize()}, "
-                f"min {d['temp']['min']:.1f}°C / max {d['temp']['max']:.1f}°C"
-            )
-
-        return "\n".join(lines)
-
-    except:
-        return "7 günlük hava tahmini şu anda alınamıyor."
-BAD_PATTERNS = [
-    r"(?i)orospu", r"(?i)siktir", r"(?i)amk", r"(?i)ibne",
-    r"(?i)tecavüz", r"(?i)uyuşturucu", r"(?i)bomba yap",
-]
-
-def moderate_content(text: str):
-    for p in BAD_PATTERNS:
-        if re.search(p, text):
-            return (
-                "Bu isteğe güvenlik nedeniyle yanıt veremiyorum. "
-                "Dilersen daha farklı bir konuda yardımcı olabilirim. 🙂"
-            )
-    return None
-def custom_identity_interceptor(msg: str):
-    m = msg.lower()
-    triggers = [
-        "seni kim yaptı", "kim geliştirdi", "who created you", "who made you",
-        "sen kimsin", "kimdesin", "origin"
-    ]
-    if any(t in m for t in triggers):
-        return (
-            "Ben **ALPTECH AI** ekibi tarafından geliştirilen profesyonel bir yapay zeka asistanıyım. 🚀\n"
-            "E-ticaret içerikleri, ürün açıklamaları, varyant analizi, fiyat stratejileri ve görsel düzenleme konusunda uzmanım."
-        )
-    return None
-def build_system_talimati():
-    z = turkce_zaman_getir()
-    return f"""
-    Senin adın **ALPTECH AI**.
-
-    Uzmanlık alanların:
-    - Ürün açıklaması, SEO, satış odaklı metin
-    - Ürün faydaları, kutu içeriği, CTA üretimi
-    - Trendyol / Hepsiburada / Amazon etiket & başlık üretimi
-    - Fiyatlandırma psikolojisi
-    - Ürün varyant çıkarımı (renk/beden/kapasite)
-    - Yorum analizi (memnuniyet & şikâyet temaları)
-    - Markalar için premium marka hikâyesi yazımı
-    - Sosyal medya reklam metinleri
-
-    Görseller: gerektiğinde görsel içeriğini analiz ederek ürün özelliklerini çıkar.
-
-    Cevap stilin:
-    • Profesyonel ve güven veren
-    • Gerektiğinde kısa, gerektiğinde detaylı
-    • Hatalı bilgi uydurma
-    • Kullanıcı dostu ve sade Türkçe
-
-    Sistem notu: Bu yanıt {z} tarihinde oluşturulmuştur.
-    """
-"""
-File: app.py
-ALPTECH AI Stüdyo — FINAL (E-Ticaret Pro)
-
+ALPTECH AI Stüdyo — v3.0
 - Apple-style UI
 - Studio + Chat modları
 - TR gerçek saat (WorldTimeAPI fallback local)
 - OpenWeather: Geo + Current + 7-günlük tahmin (TR şehirleri)
 - ALPTECH AI kimlik, güvenlik filtresi
 - Chat içinde: '+' ile dosya/görsel yükleme, 🎤 sesle yaz (Web Speech API)
-- Sol sidebar: konuşma geçmişi, prompt kütüphanesi, E-Ticaret akıllı şablonları, basit analytics
-- GPT-5.1 uyumlu, hata olursa gpt-4o-mini fallback
+- Sol sidebar: konuşma geçmişi, prompt kütüphanesi, basit analytics
 """
 
 from __future__ import annotations
@@ -509,22 +32,20 @@ if "OPENAI_API_KEY" in st.secrets:
     SABIT_API_KEY = st.secrets["OPENAI_API_KEY"]
 else:
     SABIT_API_KEY = None
-    st.warning("⚠️ OPENAI_API_KEY tanımlı değil. Sohbet ve AI sahne düzenleme devre dışı.")
+    st.warning(
+        "⚠️ OPENAI_API_KEY tanımlı değil. Sohbet ve AI sahne düzenleme özellikleri devre dışı."
+    )
 
-# Varsayılan model: gpt-5.1 (secrets içinde değiştirilebilir)
-DEFAULT_MODEL = st.secrets.get("OPENAI_MODEL", "gpt-5.1")
+DEFAULT_MODEL = st.secrets.get("OPENAI_MODEL", "gpt-4o-mini")
 
 # OpenWeather
-WEATHER_API_KEY = st.secrets.get("WEATHER_API_KEY", "5f9ee20a060a62ba9cb79d4a048395d9")
+WEATHER_API_KEY = st.secrets.get(
+    "WEATHER_API_KEY", "5f9ee20a060a62ba9cb79d4a048395d9"
+)
 WEATHER_DEFAULT_CITY = st.secrets.get("WEATHER_DEFAULT_CITY", "İstanbul")
 
-# Logo dosya yolu (aynı klasörde ALPTECHAI.png olmalı)
+# Logo dosya yolu (uygulama dizininde olmalı)
 LOGO_PATH = "ALPTECHAI.png"
-try:
-    with open(LOGO_PATH, "rb") as _lf:
-        LOGO_B64 = base64.b64encode(_lf.read()).decode("utf-8")
-except Exception:
-    LOGO_B64 = None
 
 st.set_page_config(
     page_title="ALPTECH AI Stüdyo",
@@ -534,7 +55,7 @@ st.set_page_config(
 )
 
 # ===========================
-# TEMA & CSS
+# THEME & CSS
 # ===========================
 def get_theme(is_dark: bool):
     if is_dark:
@@ -597,7 +118,7 @@ def apply_apple_css(tema: dict):
         border: none !important;
         font-weight: 600 !important;
         box-shadow: 0 6px 18px rgba(10,10,20,0.12);
-        transition: transform 120ms ease, box-shadow 120ms ease;
+        transition: transform 120ms ease, box-shadow 120ms ease, transform 120ms ease;
     }}
     .stButton>button:hover {{
         background-color: {tema['button_hover']} !important;
@@ -626,7 +147,7 @@ def apply_apple_css(tema: dict):
         color: {tema['text']} !important;
     }}
 
-    /* Chat input text görünür (koyu mod mobil dahil) */
+    /* Chat input görünür (koyu mod mobil dahil) */
     [data-testid="stChatInput"] textarea,
     [data-testid="stChatInput"] input {{
         background: {tema['input_bg']} !important;
@@ -726,6 +247,7 @@ if "sonuc_gorseli" not in st.session_state:
 if "sonuc_format" not in st.session_state:
     st.session_state.sonuc_format = "PNG"
 
+# Chat oturumları
 if "chat_sessions" not in st.session_state:
     st.session_state.chat_sessions = {}
 if "current_session" not in st.session_state:
@@ -767,190 +289,256 @@ def inc_stat(key: str, step: int = 1):
     st.session_state.analytics[key] += step
 
 # ===========================
-# E-TİCARET TEMA & PRESET LİSTESİ
+# TEMA LİSTESİ (E-TİCARET ODAKLI)
 # ===========================
 TEMA_LISTESI = {
+    # Basit arka plan işlemleri
     "🧹 Arka Planı Kaldır (Şeffaf)": "ACTION_TRANSPARENT",
     "⬜ Saf Beyaz Fon (E-ticaret)": "ACTION_WHITE",
     "⬛ Saf Siyah Fon (Premium)": "ACTION_BLACK",
-    "🍦 Krem / Bej Soft Fon": "ACTION_BEIGE",
-
-    "🛒 Katalog Stüdyo (Beyaz & Yumuşak Gölge)": (
-        "Clean e-commerce catalog shot of the object on a pure white seamless background. "
-        "Soft diffused lighting, subtle shadow, Amazon listing style, ultra-sharp."
+    "🍦 Krem / Bej Fon (Soft)": "ACTION_BEIGE",
+    # E-ticaret & katalog
+    "🛒 Katalog Stüdyosu (Beyaz)": (
+        "Clean e-commerce product photo of the object on a pure white seamless background. "
+        "Soft diffused studio lighting, natural soft shadow under the product, Amazon listing style, 4k, ultra sharp."
     ),
-    "📦 Ürün Kartı (Soft Shadow)": (
-        "High-end product photo on a light grey / white gradient background. "
-        "Soft shadow, centered composition, premium cosmetic style."
+    "📦 Ürün Kartı (Yumuşak Gölge)": (
+        "E-commerce catalog shot of the object on a very light grey to white gradient background. "
+        "Soft drop shadow, subtle reflection, minimalistic high-end cosmetics style, centered composition."
     ),
-
-    "📲 Instagram Postu 1080×1350": (
-        "Instagram 4:5 vertical post. Modern gradient background, soft shadows, "
-        "product centered, vibrant but clean style."
+    # Sosyal medya presetleri
+    "📲 Instagram Postu 1080x1350": (
+        "Vertical 4:5 ratio (1080x1350) Instagram post of the object. "
+        "Modern gradient background, bold soft shadows, high contrast, ready to post layout with focus on the product."
     ),
-    "📱 Story 1080×1920": (
-        "16:9 vertical Instagram story layout. Smooth gradient background, space left "
-        "top & bottom for text, bright and engaging design."
+    "📱 Story 1080x1920": (
+        "Vertical 9:16 ratio (1080x1920) Instagram story style image of the object. "
+        "Room for text above and below, clean gradient background, bright and eye-catching design."
     ),
-    "🎯 Kampanya Reklamı": (
-        "Advertising key visual with the object centered. Dynamic lighting, strong "
-        "contrast, clean gradient, empty negative space for text."
+    "🎯 Reklam Görseli (Kampanya)": (
+        "Advertising key visual with the object in the center. "
+        "Dynamic lighting, gradient background, plenty of negative space for campaign text on the sides, "
+        "professional marketing look."
     ),
-
-    "▶️ YouTube Thumbnail (16:9)": (
-        "Cinematic lighting, strong contrast, bold colors, product on the right side "
-        "with empty space on the left for title text."
+    "▶️ YouTube Thumbnail": (
+        "16:9 ratio YouTube thumbnail style design featuring the object on the right side with bold light background, "
+        "strong contrast, cinematic shading and room for title text on the left."
     ),
-
-    "🌫 Nötr Gri Fon": (
-        "Minimalistic product photo on a neutral grey seamless background. "
-        "Softbox lighting, subtle vignette, professional."
+    # Sahne / ortamlar
+    "🌫 Nötr Gri Fon (Universal)": (
+        "Professional product photography of the object on a neutral light grey seamless background. "
+        "Soft softbox lighting, gentle vignette, clean catalogue style, 4k."
     ),
-    "💡 3-Nokta Stüdyo Işığı": (
-        "High-end commercial product photo using 3-point lighting (key, fill, rim). "
-        "Infinity curve background, ultra-sharp."
+    "💡 Profesyonel Stüdyo (3 Nokta Işık)": (
+        "High-end studio product photo, object on an infinity curve background. "
+        "Three-point lighting setup, key light, fill light, and rim light, ultra sharp focus, commercial advertising style."
     ),
-    "🌑 Karanlık Stüdyo": (
-        "Dark matte black background, dramatic rim lighting, premium luxury aesthetic."
+    "🌑 Karanlık Stüdyo (Drama)": (
+        "Professional product shot on a matte black non-reflective background. "
+        "Dramatic rim lighting, strong contrast, subtle reflection under the product, cinematic mood."
     ),
-
     "🏛️ Mermer Zemin (Lüks)": (
-        "Product on polished white Carrara marble. Soft cinematic lighting, shallow DOF."
+        "Luxury product photo of the object placed on a polished white carrara marble podium. "
+        "Soft cinematic lighting, realistic shadows, depth of field, 8k, luxury aesthetic."
     ),
-    "🪵 Ahşap Masa (Doğal)": (
-        "Product on rustic oak wooden table, side daylight, cozy blurred background."
+    "🪵 Ahşap Zemin (Doğal)": (
+        "Product photo of the object on a textured warm oak wooden table. "
+        "Soft daylight coming from the side, blurred cozy home background, natural lifestyle look."
     ),
-    "🧱 Beton Yüzey (Modern)": (
-        "Minimal product on textured concrete surface with hard directional light."
+    "🧱 Beton Zemin (Modern)": (
+        "Minimalist product photo of the object on a raw grey concrete surface. "
+        "Hard directional light, high contrast, modern industrial style, 8k."
     ),
     "🛋️ İpek Kumaş (Zarif)": (
-        "Object resting on champagne silk fabric. Soft reflections, editorial style."
+        "Elegant product photo of the object resting on flowing champagne-colored silk fabric. "
+        "Soft studio lighting, fashion editorial look, shallow depth of field."
     ),
-    "🏠 Modern Salon": (
-        "Lifestyle shot in a Scandinavian living room with blurred decor background."
+    "🏠 Modern Salon Ortamı": (
+        "Lifestyle product photo of the object on a modern living room coffee table. "
+        "Soft natural daylight from a large window, blurred sofa and decor in the background, Scandinavian interior style."
     ),
-    "🍽 Mutfak Tezgahı": (
-        "Bright kitchen countertop, soft daylight, clean food-related composition."
+    "🍽 Mutfak Tezgahı (Gıda / Mutfak Ürünü)": (
+        "Product photo of the object on a bright kitchen countertop. "
+        "White cabinets and soft daylight, slightly blurred background, fresh and clean cooking atmosphere."
     ),
-    "🛁 Banyo Tezgahı": (
-        "Cosmetic product on bathroom countertop, blurred mirror reflections."
+    "🛁 Banyo Tezgahı (Kozmetik)": (
+        "Cosmetics-style product photo of the object on a light bathroom counter with a blurred mirror and tiles in the background. "
+        "Soft top lighting, clean spa-like aesthetic."
     ),
-    "🌿 Doğal Dış Mekan (Yeşil Arka Plan)": (
-        "Outdoor shot with blurred greenery, natural daylight, organic mood."
+    "🌿 Doğal Dış Mekan (Yeşillik)": (
+        "Product photo of the object outdoors on a simple neutral surface with blurred green plants and trees in the background. "
+        "Soft natural daylight, bokeh background, fresh and organic feeling."
     ),
-    "🌅 Gün Batımı Gradient": (
-        "Warm gradient background in orange/pink/purple sunset tones."
+    "🌅 Gün Batımı Tonları (Sıcak)": (
+        "Product photo of the object with a warm gradient background in sunset colors (orange, pink, purple). "
+        "Soft cinematic lighting, gentle reflections, premium cosmetic ad style."
     ),
-    "🍬 Pastel Minimalist Gradient": (
-        "Pastel pink/lilac/blue gradient, subtle soft shadow, clean minimal style."
+    "🍬 Pastel Gradient (Minimal)": (
+        "Minimal product photo of the object standing on a soft pastel gradient background "
+        "in light pink, lilac and blue tones. Clean composition, subtle soft shadow."
     ),
 }
 
 # ===========================
-# ZAMAN & HAVA
+# ZAMAN & HAVA FONKSİYONLARI
 # ===========================
 def fetch_tr_time() -> datetime:
+    """Önce WorldTimeAPI, hata olursa local Europe/Istanbul."""
     try:
-        r = requests.get("http://worldtimeapi.org/api/timezone/Europe/Istanbul", timeout=5)
-        if r.status_code == 200:
-            data = r.json()
-            return datetime.fromisoformat(data["datetime"])
+        resp = requests.get(
+            "http://worldtimeapi.org/api/timezone/Europe/Istanbul", timeout=5
+        )
+        if resp.status_code == 200:
+            data = resp.json()
+            dt_str = data.get("datetime")
+            if dt_str:
+                return datetime.fromisoformat(dt_str)
     except Exception:
         pass
     return datetime.now(ZoneInfo("Europe/Istanbul"))
 
 
 def turkce_zaman_getir() -> str:
-    t = fetch_tr_time()
-    gunler = ["Pazartesi","Salı","Çarşamba","Perşembe","Cuma","Cumartesi","Pazar"]
-    aylar  = ["","Ocak","Şubat","Mart","Nisan","Mayıs","Haziran","Temmuz",
-              "Ağustos","Eylül","Ekim","Kasım","Aralık"]
-    return f"{t.day} {aylar[t.month]} {t.year}, {gunler[t.weekday()]}, Saat {t.strftime('%H:%M')}"
+    simdi = fetch_tr_time()
+    gunler = {
+        0: "Pazartesi",
+        1: "Salı",
+        2: "Çarşamba",
+        3: "Perşembe",
+        4: "Cuma",
+        5: "Cumartesi",
+        6: "Pazar",
+    }
+    aylar = {
+        1: "Ocak",
+        2: "Şubat",
+        3: "Mart",
+        4: "Nisan",
+        5: "Mayıs",
+        6: "Haziran",
+        7: "Temmuz",
+        8: "Ağustos",
+        9: "Eylül",
+        10: "Ekim",
+        11: "Kasım",
+        12: "Aralık",
+    }
+    return f"{simdi.day} {aylar[simdi.month]} {simdi.year}, {gunler[simdi.weekday()]}, Saat {simdi.strftime('%H:%M')}"
 
 
 def get_time_answer() -> str:
-    t = fetch_tr_time()
-    return f"📅 Tarih: {t.strftime('%d.%m.%Y')} — ⏱ Saat: {t.strftime('%H:%M')}"
+    simdi = fetch_tr_time()
+    return (
+        f"Güncel sisteme göre tarih {simdi.strftime('%d.%m.%Y')}. "
+        f"Şu an saat {simdi.strftime('%H:%M')}."
+    )
 
 
-def extract_city_from_message(msg: str) -> str | None:
-    m = msg.lower()
-    m = re.sub(r"[^\wçğıöşü\s]", " ", m)
-    toks = [t for t in m.split() if t]
-    if not toks:
+def extract_city_from_message(message: str) -> str | None:
+    """Türkçe cümleden şehir adını tahmini çıkarır."""
+    msg = message.lower()
+    msg = re.sub(r"[^\wçğıöşü\s]", " ", msg)
+    tokens = [t for t in msg.split() if t]
+
+    if "hava" in tokens:
+        idx = tokens.index("hava")
+        if idx >= 1:
+            candidate = tokens[idx - 1]
+        else:
+            candidate = tokens[0]
+    elif tokens:
+        candidate = tokens[0]
+    else:
         return None
-    candidate = toks[0]
-    for suf in ["'da","'de","'ta","'te","da","de","ta","te"]:
+
+    for suf in ["'da", "'de", "'ta", "'te", "da", "de", "ta", "te"]:
         if candidate.endswith(suf) and len(candidate) > len(suf) + 1:
-            candidate = candidate[:-len(suf)]
+            candidate = candidate[: -len(suf)]
             break
-    return candidate.strip() or None
+
+    candidate = candidate.strip()
+    if not candidate:
+        return None
+    return candidate
 
 
 def resolve_city_to_coords(city: str, limit: int = 1):
+    """OpenWeather Geocoding API ile şehir → (lat, lon)."""
     if not WEATHER_API_KEY:
         return None
     try:
+        q = f"{city},TR"
         url = (
             "http://api.openweathermap.org/geo/1.0/direct"
-            f"?q={city},TR&limit={limit}&appid={WEATHER_API_KEY}"
+            f"?q={q}&limit={limit}&appid={WEATHER_API_KEY}"
         )
-        r = requests.get(url, timeout=5)
-        data = r.json()
+        resp = requests.get(url, timeout=10)
+        if resp.status_code != 200:
+            return None
+        data = resp.json()
         if not data:
             return None
-        return float(data[0]["lat"]), float(data[0]["lon"])
+        first = data[0]
+        return float(first["lat"]), float(first["lon"])
     except Exception:
         return None
 
 
-def get_weather_answer(city: str | None = None) -> str:
+def get_weather_answer(location: str | None = None) -> str:
     inc_stat("weather_queries")
     if not WEATHER_API_KEY:
-        return "Hava durumu API anahtarı olmadığı için şu an hava durumu veremiyorum. 🌤️"
+        return "Şu an hava durumu bilgisini veremiyorum; sistemde hava durumu API anahtarı yok. 🌤️"
 
-    if city is None:
-        city = WEATHER_DEFAULT_CITY
+    city_raw = location or WEATHER_DEFAULT_CITY or "İstanbul"
+    sehir = city_raw.strip()
+    coords = resolve_city_to_coords(sehir)
 
-    coords = resolve_city_to_coords(city)
-    if not coords:
-        return f"'{city}' için hava durumu bulamadım. Başka bir şehir söyleyebilirsin."
-
-    lat, lon = coords
     try:
-        url = (
-            "https://api.openweathermap.org/data/2.5/weather"
-            f"?lat={lat}&lon={lon}&appid={WEATHER_API_KEY}&units=metric&lang=tr"
-        )
-        r = requests.get(url, timeout=5)
-        data = r.json()
+        if coords:
+            lat, lon = coords
+            url = (
+                "https://api.openweathermap.org/data/2.5/weather"
+                f"?lat={lat}&lon={lon}&appid={WEATHER_API_KEY}&units=metric&lang=tr"
+            )
+        else:
+            url = (
+                "https://api.openweathermap.org/data/2.5/weather"
+                f"?q={sehir},TR&appid={WEATHER_API_KEY}&units=metric&lang=tr"
+            )
 
+        resp = requests.get(url, timeout=10)
+        if resp.status_code != 200:
+            return f"{sehir} için anlık hava durumu bulunamadı. Başka bir şehir söyleyebilirsin."
+
+        data = resp.json()
         durum = data["weather"][0]["description"].capitalize()
-        t = data["main"]["temp"]
-        his = data["main"].get("feels_like", t)
+        derece = data["main"]["temp"]
+        his = data["main"].get("feels_like", derece)
         nem = data["main"]["humidity"]
+        ruzgar = data["wind"]["speed"]
 
+        sehir_gorunum = sehir.title()
         return (
-            f"📍 **{city.title()}**\n"
-            f"🌡️ Sıcaklık: **{t:.1f}°C** (Hissedilen {his:.1f}°C)\n"
-            f"☁️ Durum: {durum}\n"
-            f"💧 Nem: %{nem}\n"
+            f"📍 **{sehir_gorunum}**\n"
+            f"🌡️ Sıcaklık: **{derece:.1f}°C** (Hissedilen **{his:.1f}°C**)\n"
+            f"☁️ Hava: **{durum}**\n"
+            f"💧 Nem: **%{nem}**\n"
+            f"🍃 Rüzgar: **{ruzgar} m/s**"
         )
     except Exception:
-        return "Hava durumu servisine şu an ulaşamıyorum. Biraz sonra tekrar deneyebilirsin."
+        return "Hava durumu servisinde bir sorun oluştu; lütfen biraz sonra tekrar dene."
 
 
-def get_weather_forecast_answer(city: str | None = None, days: int = 7) -> str:
+def get_weather_forecast_answer(location: str | None = None, days: int = 7) -> str:
     inc_stat("forecast_queries")
     if not WEATHER_API_KEY:
-        return "Hava durumu API anahtarı olmadığı için şu an tahmin veremiyorum."
+        return "Şu an hava durumu bilgisini veremiyorum; sistemde hava durumu API anahtarı yok. 🌤️"
 
-    if city is None:
-        city = WEATHER_DEFAULT_CITY
-
-    coords = resolve_city_to_coords(city)
+    city_raw = location or WEATHER_DEFAULT_CITY or "İstanbul"
+    sehir = city_raw.strip()
+    coords = resolve_city_to_coords(sehir)
     if not coords:
-        return f"{city} için konum çözülemedi."
+        return f"{sehir} için konum bilgisi alınamadı; başka bir şehir söyleyebilirsin."
 
     lat, lon = coords
     try:
@@ -959,30 +547,45 @@ def get_weather_forecast_answer(city: str | None = None, days: int = 7) -> str:
             f"?lat={lat}&lon={lon}&exclude=minutely,hourly,alerts"
             f"&appid={WEATHER_API_KEY}&units=metric&lang=tr"
         )
-        r = requests.get(url, timeout=5)
-        data = r.json()
+        resp = requests.get(url, timeout=10)
+        if resp.status_code != 200:
+            return f"{sehir} için 7 günlük hava tahmini alınamadı."
+
+        data = resp.json()
         daily = data.get("daily", [])
         if not daily:
-            return f"{city} için günlük tahmin verisi bulunamadı."
+            return f"{sehir} için günlük tahmin verisi bulunamadı."
 
-        lines = [f"📍 **{city.title()} için 7 Günlük Hava Tahmini:**"]
-        for d in daily[:days]:
+        gun_sayisi = min(days, len(daily))
+        sehir_gorunum = sehir.title()
+        lines = [f"📍 **{sehir_gorunum} için 7 günlük hava tahmini:**"]
+        for i in range(gun_sayisi):
+            d = daily[i]
             dt = datetime.fromtimestamp(d["dt"], ZoneInfo("Europe/Istanbul"))
             tarih = dt.strftime("%d.%m.%Y %a")
+            min_t = d["temp"]["min"]
+            max_t = d["temp"]["max"]
+            desc = d["weather"][0]["description"].capitalize()
             lines.append(
-                f"- **{tarih}** — {d['weather'][0]['description'].capitalize()}, "
-                f"min {d['temp']['min']:.1f}°C / max {d['temp']['max']:.1f}°C"
+                f"- **{tarih}** → {desc}, min **{min_t:.1f}°C**, max **{max_t:.1f}°C**"
             )
         return "\n".join(lines)
     except Exception:
-        return "7 günlük hava tahmini şu anda alınamıyor."
+        return "7 günlük hava tahmini alınırken bir sorun oluştu; lütfen daha sonra tekrar dene."
 
 # ===========================
 # GÜVENLİK / FİLTRE
 # ===========================
 BAD_PATTERNS = [
-    r"(?i)orospu", r"(?i)siktir", r"(?i)amk", r"(?i)ibne",
-    r"(?i)tecavüz", r"(?i)uyuşturucu", r"(?i)bomba yap", r"(?i)intihar",
+    r"(?i)küfret",
+    r"(?i)orospu",
+    r"(?i)piç",
+    r"(?i)siktir",
+    r"(?i)ibne",
+    r"(?i)tecavüz",
+    r"(?i)uyuşturucu",
+    r"(?i)intihar",
+    r"(?i)bomba yap",
 ]
 
 
@@ -990,8 +593,8 @@ def moderate_content(text: str) -> str | None:
     for pat in BAD_PATTERNS:
         if re.search(pat, text):
             return (
-                "Bu isteğe güvenlik nedeniyle yanıt veremiyorum. "
-                "Dilersen daha farklı bir konuda yardımcı olabilirim. 🙂"
+                "Bu isteğe doğrudan yardımcı olamam. "
+                "Ancak istediğin konuyu daha güvenli ve olumlu bir şekilde ele almak istersen beraber bakabiliriz. 🙂"
             )
     return None
 
@@ -999,13 +602,19 @@ def moderate_content(text: str) -> str | None:
 # KİMLİK & CHAT YARDIMCI
 # ===========================
 def custom_identity_interceptor(user_message: str) -> str | None:
-    m = user_message.lower()
     triggers = [
-        "seni kim yaptı", "seni kim yarattı", "kim geliştirdi",
-        "kimsin", "sen kimsin", "who created you", "who made you",
-        "who built you", "who are you",
+        "seni kim yaptı",
+        "seni kim yarattı",
+        "kim geliştirdi",
+        "kimsin",
+        "sen kimsin",
+        "who created you",
+        "who made you",
+        "who built you",
+        "who are you",
     ]
-    if any(t in m for t in triggers):
+    msg = user_message.lower().strip()
+    if any(t in msg for t in triggers):
         return (
             "Beni **ALPTECH AI** ekibi geliştirdi 🚀\n\n"
             "Görevim; senin için akıllı bir stüdyo asistanı olmak, ürün görsellerini profesyonelleştirmek "
@@ -1015,16 +624,16 @@ def custom_identity_interceptor(user_message: str) -> str | None:
 
 
 def custom_utility_interceptor(user_message: str) -> str | None:
-    m = user_message.lower()
+    msg = user_message.lower()
 
-    if "saat" in m or "tarih" in m:
+    if "saat" in msg or "tarih" in msg:
         return get_time_answer()
 
-    if "7 günlük hava" in m or "7 gunluk hava" in m or "haftalık hava" in m:
+    if "7 günlük hava" in msg or "7 gunluk hava" in msg or "haftalık hava" in msg:
         city = extract_city_from_message(user_message) or WEATHER_DEFAULT_CITY
         return get_weather_forecast_answer(city)
 
-    if "hava" in m or "hava durumu" in m or "hava nasıl" in m:
+    if "hava" in msg or "hava durumu" in msg or "hava nasıl" in msg:
         city = extract_city_from_message(user_message) or WEATHER_DEFAULT_CITY
         return get_weather_answer(city)
 
@@ -1032,35 +641,23 @@ def custom_utility_interceptor(user_message: str) -> str | None:
 
 
 def build_system_talimati():
-    z = turkce_zaman_getir()
+    zaman_bilgisi = turkce_zaman_getir()
     return f"""
     Senin adın **ALPTECH AI**.
+    ALPTECH AI ekibi tarafından geliştirilen, modern ve profesyonel bir yapay zeka asistansın.
 
-    Uzmanlık alanların:
-    - Ürün açıklaması, SEO, satış odaklı metin
-    - Ürün faydaları, kutu içeriği, CTA üretimi
-    - Trendyol / Hepsiburada / Amazon etiket & başlık üretimi
-    - Fiyatlandırma psikolojisi ve fiyat önerileri
-    - Ürün varyant çıkarımı (renk/beden/kapasite)
-    - Müşteri yorum analizi (memnuniyet & şikâyet temaları)
-    - Markalar için premium marka hikâyesi yazımı
-    - Sosyal medya reklam metinleri (Instagram, TikTok, Facebook vb.)
+    Odak noktaların:
+    - Ürün görselleri üzerinde çalışma (arka plan kaldırma, sahne oluşturma, e-ticaret görselleri).
+    - E-ticaret odaklı metinler yazma (ürün açıklaması, kampanya metni, sosyal medya postu).
+    - Genel sorularda açıklayıcı, sade cevaplar verme.
 
-    Görseller: Yüklenen ürün görselini analiz ederek ürünün tipi, tarzı, malzemesi gibi noktaları çıkar
-    ve e-ticaret için uygun açıklama, başlık, etiket ve kampanya fikirleri öner.
-
-    Cevap stilin:
-    • Profesyonel, net ve güven veren
-    • Hatalı bilgi uydurma, eksik bilgi varsa sor
-    • Türkçe'yi sade ve akıcı kullan
-    • Kullanıcı "kısa" derse özet, "detaylı" derse kapsamlı anlat
-
-    Sistem notu: Bu yanıt {z} tarihinde oluşturulmuştur.
+    Her zaman kendini "ALPTECH AI" olarak tanıt.
+    Seni kimin geliştirdiği sorulduğunda: "ALPTECH AI ekibi" de.
+    Mümkün olduğunca kısa ama net cevap ver; kullanıcı isterse detaya gir.
+    Sistem notu: Bu yanıtlar {zaman_bilgisi} tarihinde oluşturuluyor.
     """
 
-# ===========================
-# GPT-5.1 / GPT-4o CHAT MOTORU
-# ===========================
+
 def normal_sohbet(client: OpenAI):
     system_talimati = build_system_talimati()
     max_context = 40
@@ -1089,61 +686,27 @@ def normal_sohbet(client: OpenAI):
         else:
             messages.append({"role": "assistant", "content": msg["content"]})
 
-    model_to_use = st.secrets.get("OPENAI_MODEL", DEFAULT_MODEL) or "gpt-5.1"
-
-    # 1. Deneme: kullanıcının seçtiği (örn: gpt-5.1)
+    model_to_use = st.secrets.get("OPENAI_MODEL", DEFAULT_MODEL)
     try:
-        resp = client.chat.completions.create(
+        response = client.chat.completions.create(
             model=model_to_use,
             messages=messages,
-            temperature=0.25,
-            max_tokens=1500,
+            temperature=0.2,
+            max_tokens=1200,
         )
         try:
-            return resp.choices[0].message.content
+            return response.choices[0].message.content
         except Exception:
-            return resp.choices[0].text
+            return response.choices[0].text
     except Exception as e:
-        # 2. Deneme: fallback gpt-4o-mini
-        print("Model hatası, fallback'e geçiliyor:", e)
-        try:
-            resp = client.chat.completions.create(
-                model="gpt-4o-mini",
-                messages=messages,
-                temperature=0.25,
-                max_tokens=1500,
-            )
-            try:
-                return resp.choices[0].message.content
-            except Exception:
-                return resp.choices[0].text
-        except Exception as e2:
-            tb = traceback.format_exc()
-            st.error("⚠️ Sohbet API çağrısında hata. Konsolu kontrol et.")
-            print("Chat API HATA:", e, e2, tb)
-            return "Üzgünüm, sohbet hizmetinde şu an teknik bir sorun var."
+        tb = traceback.format_exc()
+        st.error("⚠️ Sohbet API çağrısında hata. Konsolu kontrol et.")
+        print("Chat API HATA:", e, tb)
+        return "Üzgünüm, sohbet hizmetinde şu an bir sorun var."
 
 # ===========================
 # GÖRSEL İŞLEME
 # ===========================
-def remove_bg_high_quality(img: Image.Image) -> Image.Image:
-    """
-    Zincir, saç, ince detayları daha iyi korumaya çalışır.
-    rembg parametreleri biraz daha yumuşatıldı.
-    """
-    try:
-        return remove(
-            img,
-            alpha_matting=True,
-            alpha_matting_foreground_threshold=250,
-            alpha_matting_background_threshold=5,
-            alpha_matting_erode_size=0,  # 0 = detayları koru
-        )
-    except Exception as e:
-        print("rembg hata (fallback RGBA):", e)
-        return img.convert("RGBA")
-
-
 def resmi_hazirla(image: Image.Image):
     kare_resim = Image.new("RGBA", (1024, 1024), (0, 0, 0, 0))
     image.thumbnail((850, 850), Image.Resampling.LANCZOS)
@@ -1168,17 +731,25 @@ def sahne_olustur(client: OpenAI, urun_resmi: Image.Image, prompt_text: str):
         if urun_resmi.width > max_boyut or urun_resmi.height > max_boyut:
             urun_resmi.thumbnail((max_boyut, max_boyut), Image.Resampling.LANCZOS)
 
-        temiz_urun = remove_bg_high_quality(urun_resmi)
-        hazir_urun = resmi_hazirla(temiz_urun)
+        try:
+            temiz_urun = remove(
+                urun_resmi,
+                alpha_matting=True,
+                alpha_matting_foreground_threshold=240,
+                alpha_matting_background_threshold=10,
+            )
+        except Exception:
+            temiz_urun = urun_resmi.convert("RGBA")
 
+        hazir_urun = resmi_hazirla(temiz_urun)
         if hazir_urun.mode != "RGBA":
             hazir_urun = hazir_urun.convert("RGBA")
         maske_ham = hazir_urun.split()[3]
-        maske_yumusak = maske_ham.filter(ImageFilter.GaussianBlur(radius=2))
+        maske_yumusak = maske_ham.filter(ImageFilter.GaussianBlur(radius=3))
         final_maske = Image.new("RGBA", hazir_urun.size, (0, 0, 0, 0))
         final_maske.putalpha(maske_yumusak)
 
-        resp = client.images.edit(
+        response = client.images.edit(
             image=("image.png", bayt_cevir(hazir_urun), "image/png"),
             mask=("mask.png", bayt_cevir(final_maske), "image/png"),
             prompt=prompt_text,
@@ -1186,10 +757,10 @@ def sahne_olustur(client: OpenAI, urun_resmi: Image.Image, prompt_text: str):
             size="1024x1024",
         )
         try:
-            return resp.data[0].url
+            return response.data[0].url
         except Exception:
             try:
-                return resp["data"][0]["url"]
+                return response["data"][0]["url"]
             except Exception:
                 return None
     except Exception as e:
@@ -1202,11 +773,19 @@ def yerel_islem(urun_resmi: Image.Image, islem_tipi: str):
     if urun_resmi.width > max_boyut or urun_resmi.height > max_boyut:
         urun_resmi.thumbnail((max_boyut, max_boyut), Image.Resampling.LANCZOS)
 
-    temiz_urun = remove_bg_high_quality(urun_resmi)
+    try:
+        temiz_urun = remove(
+            urun_resmi,
+            alpha_matting=True,
+            alpha_matting_foreground_threshold=240,
+            alpha_matting_background_threshold=10,
+        )
+    except Exception as e:
+        print("rembg hata, orijinal resim kullanılıyor:", e)
+        temiz_urun = urun_resmi
 
     if islem_tipi == "ACTION_TRANSPARENT":
         return temiz_urun
-
     renkler = {
         "ACTION_WHITE": (255, 255, 255),
         "ACTION_BLACK": (0, 0, 0),
@@ -1218,11 +797,12 @@ def yerel_islem(urun_resmi: Image.Image, islem_tipi: str):
     return bg
 
 # ===========================
-# SIDEBAR — Geçmiş & Prompt Kütüphanesi
+# SIDEBAR (KONUŞMA GEÇMİŞİ & PROMPT KÜTÜPHANESİ)
 # ===========================
 def sidebar_ui():
     st.sidebar.markdown("### 🧠 ALPTECH AI Panel")
 
+    # Konuşma geçmişi
     st.sidebar.markdown("**Konuşmalarım**")
     sessions = list(st.session_state.chat_sessions.keys())
     if st.sidebar.button("➕ Yeni konuşma"):
@@ -1235,14 +815,12 @@ def sidebar_ui():
         ]
         st.session_state.current_session = new_name
         st.session_state.chat_history = st.session_state.chat_sessions[new_name]
-        st.rerun()
+        st.experimental_rerun()
 
     sessions = list(st.session_state.chat_sessions.keys())
     if sessions:
         selected = st.sidebar.selectbox(
-            "Aktif konuşma",
-            sessions,
-            index=sessions.index(st.session_state.current_session),
+            "Aktif konuşma", sessions, index=sessions.index(st.session_state.current_session)
         )
         if selected != st.session_state.current_session:
             st.session_state.chat_sessions[st.session_state.current_session] = (
@@ -1250,113 +828,46 @@ def sidebar_ui():
             )
             st.session_state.current_session = selected
             st.session_state.chat_history = st.session_state.chat_sessions[selected]
-            st.rerun()
+            st.experimental_rerun()
 
     st.sidebar.markdown("---")
-    st.sidebar.markdown("**Hazır Promptlar**")
 
+    # Prompt kütüphanesi
+    st.sidebar.markdown("**Hazır Promptlar**")
     prompt_exp = st.sidebar.expander("Metin & Kampanya", expanded=False)
     with prompt_exp:
         if st.button("🛍 Ürün açıklaması oluştur", key="p_prod_desc"):
             st.session_state.pending_prompt = (
-                "Bir e-ticaret ürünü için profesyonel bir ürün açıklaması yazmanı istiyorum.\n\n"
-                "Şu yapıyı takip et:\n"
-                "- Kısa giriş paragrafı\n"
-                "- Öne çıkan 5 fayda (madde madde)\n"
-                "- Kutu içeriği\n"
-                "- Hedef kitle\n"
-                "- Kullanım önerileri\n"
-                "- Güçlü bir satın almaya çağrı (CTA)\n\n"
-                "Ürün bilgilerini sorarak benden alabilirsin."
+                "Bir e-ticaret ürünü için SEO uyumlu, ikna edici bir ürün açıklaması "
+                "yazar mısın? Özellikler: [ÜRÜN ADI], [ÖNE ÇIKAN ÖZELLİKLER], [KULLANIM ALANLARI]."
             )
         if st.button("🎉 Kampanya / İndirim duyurusu", key="p_campaign"):
             st.session_state.pending_prompt = (
-                "Markam için kısa bir kampanya / indirim duyurusu metni yaz. Ton: samimi, enerjik, aksiyona çağıran."
+                "Markam için % indirim içeren kısa bir kampanya duyurusu metni yazar mısın? "
+                "Ton: samimi, enerjik, aksiyona çağıran."
             )
         if st.button("📢 Eğitim / Etkinlik duyurusu", key="p_event"):
             st.session_state.pending_prompt = (
-                "Online eğitim için Instagram postu açıklaması yaz. Konu, tarih ve hedef kitleyi benden sor."
+                "Online eğitim için Instagram postu açıklaması yazar mısın? "
+                "Konu: [EĞİTİM KONUSU], Tarih: [TARİH], Hedef kitle: [HEDEF]."
             )
 
     prompt_img = st.sidebar.expander("Görsel & Tasarım", expanded=False)
     with prompt_img:
         if st.button("📲 Instagram post tasarım fikri", key="p_ig_post"):
             st.session_state.pending_prompt = (
-                "Bir ürün için Instagram post tasarım fikri üret. Renk paleti, tipografi ve çekim açısı öner."
+                "Bir ürün için Instagram post tasarım fikri üret. Arka plan, renk paleti, "
+                "tipografi ve çekim açısı önerisi içersin."
             )
         if st.button("🎯 Reklam kreatif fikirleri", key="p_ad_ideas"):
             st.session_state.pending_prompt = (
                 "Yeni çıkacak bir ürün için 3 farklı dijital reklam kreatif fikri öner. "
-                "Her fikirde hedef kitle, ana mesaj ve görsel tarzı belirt."
-            )
-
-    ecom = st.sidebar.expander("🛒 E-Ticaret Asistanı (Akıllı Şablonlar)", expanded=False)
-    with ecom:
-        st.write("Birini seç → sohbet kutusuna hazır prompt olarak gelsin.")
-
-        if st.button("📄 Profesyonel ürün açıklaması (5 fayda + kutu içeriği)", key="e_full_desc"):
-            st.session_state.pending_prompt = (
-                "E-ticaret odaklı profesyonel bir ürün açıklaması yazmanı istiyorum.\n\n"
-                "Yapı:\n"
-                "1) Kısa giriş\n"
-                "2) Öne çıkan 5 fayda\n"
-                "3) Kutu içeriği\n"
-                "4) Hedef kitle\n"
-                "5) Kullanım önerileri\n"
-                "6) CTA\n\n"
-                "Ürün detayı: [ÜRÜN ADI], [MARKA], [ÖZELLİKLER], [KULLANIM ALANI]. "
-                "Eksik bilgileri benden sor."
-            )
-
-        if st.button("🖼 Görselden ürün analizi ve açıklama", key="e_image_analysis"):
-            st.session_state.pending_prompt = (
-                "Yüklediğim ürün görseline bakarak ürünün ne olduğunu tarif et ve "
-                "e-ticaret odaklı bir açıklama yaz. Öne çıkan özellikler, kullanım alanları "
-                "ve hedef kitleyi de belirt."
-            )
-
-        if st.button("🧪 Başlık için A/B test (5 varyasyon)", key="e_title_ab"):
-            st.session_state.pending_prompt = (
-                "Bir e-ticaret ürünü için 5 farklı SEO uyumlu ürün başlığı üret. "
-                "Her başlıkta marka + ürün adı + 1-2 güçlü fayda geçsin."
-            )
-
-        if st.button("🏷 Trendyol / Pazaryeri etiketleri", key="e_tags"):
-            st.session_state.pending_prompt = (
-                "Bir ürün için Trendyol ve benzeri pazaryerlerinde kullanılabilecek, "
-                "küçük harfle yazılmış, virgülle ayrılmış en az 25 etiket üret."
-            )
-
-        if st.button("💰 Fiyat psikolojisi & konumlandırma", key="e_pricing"):
-            st.session_state.pending_prompt = (
-                "Bir ürünü fiyatlandırırken fiyat psikolojisi açısından öneriler ver. "
-                "Hedef fiyat aralığı, psikolojik fiyat (ör: 499,90), paketleme ve kampanya önerileri ekle."
-            )
-
-        if st.button("📦 Varyant çıkarımı (renk/beden/kapasite)", key="e_variants"):
-            st.session_state.pending_prompt = (
-                "Vereceğim ürün açıklamasına bakarak renk, beden, kapasite ve diğer olası varyantları listele."
-            )
-
-        if st.button("⭐ Müşteri yorum analizi", key="e_reviews"):
-            st.session_state.pending_prompt = (
-                "Yapıştıracağım müşteri yorumlarını analiz et. En çok beğenilen yönler, "
-                "en çok şikâyet edilen noktalar ve geliştirme önerilerini yaz."
-            )
-
-        if st.button("📣 Sosyal medya reklam metinleri", key="e_ads"):
-            st.session_state.pending_prompt = (
-                "Bir ürün için Instagram, TikTok ve Facebook reklam metinleri üret. "
-                "Her platform için 2'şer kısa metin, altında uygun hashtagler ver."
-            )
-
-        if st.button("🏪 Premium marka hikâyesi", key="e_brand_story"):
-            st.session_state.pending_prompt = (
-                "Mağazam için premium bir marka hikâyesi yaz. Kuruluş amacı, değerler, "
-                "müşteriye verilen sözler ve vizyonu anlat."
+                "Her fikirde hedef kitle, mesaj ve görsel tarzı belirt."
             )
 
     st.sidebar.markdown("---")
+
+    # Analytics
     with st.sidebar.expander("📊 Analytics (demo)", expanded=False):
         a = st.session_state.analytics
         st.write(f"Stüdyo çalıştırma: {a.get('studio_runs', 0)}")
@@ -1375,38 +886,29 @@ def sidebar_ui():
 # ===========================
 # HEADER & GENEL UI
 # ===========================
+# Tema seçimi
 col_bosluk, col_tema = st.columns([10, 1])
 with col_tema:
     karanlik_mod = st.toggle("🌙 / ☀️", value=True, key="theme_toggle")
 tema = get_theme(karanlik_mod)
 apply_apple_css(tema)
 
+# Sidebar UI
 sidebar_ui()
 
-# Logo + Başlık
+# Header
 header_left, header_right = st.columns([0.16, 0.84])
 with header_left:
-    if LOGO_B64:
-        if karanlik_mod:
-            style = "max-width:160px; width:100%; display:block; margin-bottom:0.3rem;"
-        else:
-            style = (
-                "max-width:160px; width:100%; display:block; margin-bottom:0.3rem;"
-                "filter: invert(1) drop-shadow(0 0 4px rgba(0,0,0,0.6));"
-            )
-        st.markdown(
-            f"<img src='data:image/png;base64,{LOGO_B64}' style='{style}'>",
-            unsafe_allow_html=True,
-        )
-    else:
+    try:
+        st.image(LOGO_PATH, use_column_width=True)
+    except Exception:
         st.markdown("### ALPTECH")
-
 with header_right:
     st.markdown(
         """
         <h1 style="margin-bottom: 0.2rem;">ALPTECH AI Stüdyo</h1>
         <p style="margin-top: 0; font-size: 0.95rem;">
-        Ürününü ekle, e-ticaret ve sosyal medya için profesyonel sahneler oluştur; GPT-5.1 destekli asistanla metinlerini hazırla.
+        Ürününü ekle, e-ticaret ve sosyal medya için profesyonel sahneler oluştur.
         </p>
         """,
         unsafe_allow_html=True,
@@ -1428,6 +930,7 @@ with col_studio:
         st.session_state.sonuc_gorseli = None
         st.rerun()
 
+
 with col_chat:
     if st.button(
         "💬 Sohbet Modu (Genel Asistan)",
@@ -1438,6 +941,7 @@ with col_chat:
         st.session_state.app_mode = "💬 Sohbet Modu (Genel Asistan)"
         st.session_state.sonuc_gorseli = None
         st.rerun()
+
 
 st.divider()
 
@@ -1493,6 +997,7 @@ if st.session_state.app_mode == "📸 Stüdyo Modu (Görsel Düzenleme)":
         label_visibility="collapsed",
         key="studio_upload",
     )
+
     kaynak_dosya = uploaded_file
 
     if kaynak_dosya:
@@ -1547,8 +1052,8 @@ if st.session_state.app_mode == "📸 Stüdyo Modu (Görsel Düzenleme)":
                         user_input = st.text_area(
                             "Hayalindeki sahneyi yaz:",
                             placeholder=(
-                                "Örn: Çantayı beyaz fonda bırak, zincirleri net kalsın, "
-                                "zemine hafif gölge ekle..."
+                                "Örn: Arabanın rengini mavi yap, arkayı koyu gri degrade yap, "
+                                "zeminde yumuşak yansıma olsun..."
                             ),
                             height=120,
                         )
@@ -1565,20 +1070,34 @@ if st.session_state.app_mode == "📸 Stüdyo Modu (Görsel Düzenleme)":
                         try:
                             if final_prompt and SABIT_API_KEY is not None:
                                 client = OpenAI(api_key=SABIT_API_KEY)
-                                with st.spinner("AI sahneni oluşturuyor (10–30sn)... 🎨"):
-                                    url = sahne_olustur(client, raw_image, final_prompt)
+                                with st.spinner(
+                                    "AI sahneni oluşturuyor (10–30sn)... 🎨"
+                                ):
+                                    url = sahne_olustur(
+                                        client, raw_image, final_prompt
+                                    )
                                     if url:
                                         try:
                                             resp = requests.get(url, timeout=40)
                                             if resp.status_code == 200:
-                                                st.session_state.sonuc_gorseli = resp.content
+                                                st.session_state.sonuc_gorseli = (
+                                                    resp.content
+                                                )
                                                 st.session_state.sonuc_format = "PNG"
-                                                st.rerun()
+                                                st.experimental_rerun()
                                             else:
-                                                st.error("AI görseli indirilemedi. Lütfen tekrar dene.")
+                                                st.error(
+                                                    "AI görseli indirilemedi. Lütfen tekrar dene."
+                                                )
                                         except Exception as e:
-                                            st.error("Sonuç indirilemedi. Lütfen tekrar dene.")
-                                            print("resim indir hata:", e, traceback.format_exc())
+                                            st.error(
+                                                "Sonuç indirilemedi. Lütfen tekrar dene."
+                                            )
+                                            print(
+                                                "resim indir hata:",
+                                                e,
+                                                traceback.format_exc(),
+                                            )
                                     else:
                                         st.error(
                                             "AI görsel düzenlemesi başarısız oldu. "
@@ -1596,13 +1115,17 @@ if st.session_state.app_mode == "📸 Stüdyo Modu (Görsel Düzenleme)":
                                     sonuc.save(buf, format=fmt)
                                     st.session_state.sonuc_gorseli = buf.getvalue()
                                     st.session_state.sonuc_format = fmt
-                                    st.rerun()
+                                    st.experimental_rerun()
                             else:
-                                st.warning("Lütfen bir hazır tema seç veya kendi sahneni yaz.")
+                                st.warning(
+                                    "Lütfen bir hazır tema seç veya kendi sahneni yaz."
+                                )
                         except Exception as e:
                             st.error(f"Hata: {e}")
                             print("İşlem başlat hata:", traceback.format_exc())
-                            buton_placeholder.button("🚀 Tekrar Dene", type="primary")
+                            buton_placeholder.button(
+                                "🚀 Tekrar Dene", type="primary"
+                            )
                 else:
                     st.markdown(
                         '<div class="container-header">✨ Sonuç</div>',
@@ -1616,9 +1139,13 @@ if st.session_state.app_mode == "📸 Stüdyo Modu (Görsel Düzenleme)":
                     c1, c2 = st.columns(2)
                     with c1:
                         with st.expander("👁️ Büyüt"):
-                            st.image(st.session_state.sonuc_gorseli, use_container_width=True)
+                            st.image(
+                                st.session_state.sonuc_gorseli, use_container_width=True
+                            )
                     with c2:
-                        if isinstance(st.session_state.sonuc_gorseli, (bytes, bytearray)):
+                        if isinstance(
+                            st.session_state.sonuc_gorseli, (bytes, bytearray)
+                        ):
                             st.download_button(
                                 label=f"📥 İndir ({st.session_state.sonuc_format})",
                                 data=st.session_state.sonuc_gorseli,
@@ -1628,7 +1155,9 @@ if st.session_state.app_mode == "📸 Stüdyo Modu (Görsel Düzenleme)":
                             )
                         else:
                             try:
-                                resp = requests.get(st.session_state.sonuc_gorseli, timeout=30)
+                                resp = requests.get(
+                                    st.session_state.sonuc_gorseli, timeout=30
+                                )
                                 if resp.status_code == 200:
                                     st.download_button(
                                         label="📥 İndir (PNG)",
@@ -1641,12 +1170,16 @@ if st.session_state.app_mode == "📸 Stüdyo Modu (Görsel Düzenleme)":
                                     st.warning("İndirilebilir sonuç bulunamadı.")
                             except Exception as e:
                                 st.warning("İndirilebilir sonuç alınamadı.")
-                                print("download fallback hata:", e, traceback.format_exc())
+                                print(
+                                    "download fallback hata:",
+                                    e,
+                                    traceback.format_exc(),
+                                )
 
                     st.write("")
                     if st.button("🔄 Yeni İşlem Yap"):
                         st.session_state.sonuc_gorseli = None
-                        st.rerun()
+                        st.experimental_rerun()
 
 # ===========================
 # SOHBET MODU
@@ -1659,36 +1192,31 @@ elif st.session_state.app_mode == "💬 Sohbet Modu (Genel Asistan)":
         unsafe_allow_html=True,
     )
 
-    # Geçmiş mesajlar
-    for msg in st.session_state.chat_history:
-        with st.chat_message(msg["role"]):
-            st.write(msg["content"])
-
-    st.write("")
-
-    # Chat alanının hemen üstünde: + butonu & uploader
-    bottom_bar = st.container()
-    with bottom_bar:
+    # Chat içi '+' ile upload panel yönetimi
+    top_bar = st.container()
+    with top_bar:
         col_plus, col_info = st.columns([0.12, 0.88])
         with col_plus:
-            if st.button("➕", key="chat_plus_bottom", help="Dosya / görsel ekle"):
-                st.session_state.show_upload_panel = not st.session_state.show_upload_panel
-
+            if st.button("➕", key="chat_plus", help="Dosya / görsel ekle"):
+                st.session_state.show_upload_panel = (
+                    not st.session_state.show_upload_panel
+                )
         with col_info:
             if st.session_state.chat_image:
                 st.caption(
-                    "📎 Bir ürün görseli yüklü. Yeni mesajlarında bu görsele göre açıklama isteyebilirsin."
+                    "📎 Bir ürün görseli eklendi. Yeni sorularında bu görsele göre açıklama isteyebilirsin."
                 )
             else:
                 st.caption(
-                    "İstersen alttaki '+' ile ürün görseli yükleyip mağaza açıklaması, kampanya metni vb. yazdırabilirsin."
+                    "İstersen '+' ile ürün görseli ekleyip mağaza açıklaması, kampanya metni vb. yazdırabilirsin."
                 )
 
-        if st.session_state.show_upload_panel:
+    if st.session_state.show_upload_panel:
+        with st.expander("📎 Dosya / Görsel yükle", expanded=True):
             chat_upload = st.file_uploader(
                 "Görsel veya dosya yükle",
                 type=["png", "jpg", "jpeg", "webp", "pdf", "txt"],
-                key="chat_upload_bottom",
+                key="chat_upload",
             )
             if chat_upload is not None:
                 try:
@@ -1696,13 +1224,17 @@ elif st.session_state.app_mode == "💬 Sohbet Modu (Genel Asistan)":
                     st.session_state.chat_image = file_bytes
                     st.session_state.show_upload_panel = False
                     inc_stat("uploads")
-                    st.success(
-                        "Dosya yüklendi. Şimdi bu dosya/görsel hakkında soru sorabilirsin."
-                    )
+                    st.success("Dosya yüklendi. Şimdi bu dosya/görsel hakkında soru sorabilirsin.")
                 except Exception as e:
                     st.error("Dosya okunamadı, lütfen tekrar dene.")
                     print("chat upload error:", e)
 
+    # Mesaj geçmişini göster
+    for msg in st.session_state.chat_history:
+        with st.chat_message(msg["role"]):
+            st.write(msg["content"])
+
+    # Pending prompt (sidebar hazır prompt)
     pending_prompt = st.session_state.pending_prompt
     if pending_prompt:
         st.session_state.pending_prompt = None
@@ -1716,13 +1248,12 @@ elif st.session_state.app_mode == "💬 Sohbet Modu (Genel Asistan)":
         with st.chat_message("user"):
             st.write(prompt)
 
+        # Güvenlik filtresi
         mod_msg = moderate_content(prompt)
         if mod_msg is not None:
             with st.chat_message("assistant"):
                 st.write(mod_msg)
-            st.session_state.chat_history.append(
-                {"role": "assistant", "content": mod_msg}
-            )
+            st.session_state.chat_history.append({"role": "assistant", "content": mod_msg})
         else:
             override = custom_identity_interceptor(prompt)
             if override is not None:
@@ -1760,6 +1291,7 @@ elif st.session_state.app_mode == "💬 Sohbet Modu (Genel Asistan)":
                                     {"role": "assistant", "content": cevap}
                                 )
 
+    # Güncel chat'i aktif oturuma kaydet
     st.session_state.chat_sessions[st.session_state.current_session] = (
         st.session_state.chat_history
     )
@@ -1771,3 +1303,5 @@ st.markdown(
     "<div class='custom-footer'>ALPTECH AI Stüdyo © 2025 | Developed by Alper</div>",
     unsafe_allow_html=True,
 )
+
+

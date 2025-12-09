@@ -1,3 +1,4 @@
+
 # ==========================================================
 # QELYON AI STÜDYO — FINAL v8
 # Gemini Vision • Gemini Flash • Gemini 1.5 Pro • GPT-4o Hibrit Sistem
@@ -1257,5 +1258,6 @@ if prompt:
     else:
         # normal Gemini general chat akışı (senin mevcut kodun)
         handle_general_chat(prompt)
+
 
 
